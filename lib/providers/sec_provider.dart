@@ -78,14 +78,15 @@ class SecProvider extends ChangeNotifier {
       notifyListeners();
 
       // Fetch SEC data and stock price in parallel
-      final results = await Future.wait([
-        _apiService.getFinancialData(company),
-        _stockPriceService.getPrice(company.ticker),
+      late final SecFinancialData? secData;
+      late final ({double? price, String? marketState}) priceResult;
+
+      await Future.wait([
+        _apiService.getFinancialData(company).then((v) => secData = v),
+        _stockPriceService.getPrice(company.ticker).then((v) => priceResult = v),
       ]);
 
-      _financialData = results[0] as SecFinancialData?;
-      final priceResult =
-          results[1] as ({double? price, String? marketState});
+      _financialData = secData;
 
       if (_financialData == null) {
         _error = 'No financial data available for ${company.ticker}';
