@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../models/financial_data.dart';
@@ -86,13 +87,19 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
 
     _sharesDiluted = data.sharesDiluted;
 
-    // If user already entered a stock price, calculate market cap
-    final price = double.tryParse(_stockPriceController.text);
-    if (price != null && _sharesDiluted != null) {
-      final marketCap = price * _sharesDiluted!;
-      _marketCapController.text = _formatForForm(marketCap);
+    // Auto-fill stock price if available from Yahoo Finance
+    if (data.currentStockPrice != null) {
+      _stockPriceController.text = data.currentStockPrice!.toStringAsFixed(2);
+      // _onStockPriceChanged listener will auto-calculate market cap
     } else {
-      _marketCapController.text = '';
+      // If user already entered a stock price, calculate market cap
+      final price = double.tryParse(_stockPriceController.text);
+      if (price != null && _sharesDiluted != null) {
+        final marketCap = price * _sharesDiluted!;
+        _marketCapController.text = _formatForForm(marketCap);
+      } else {
+        _marketCapController.text = '';
+      }
     }
   }
 
@@ -217,6 +224,17 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                         _autoPopulate(secProvider.financialData!),
                     child:
                         const Text('Auto-populate Financial Data'),
+                  ),
+                ],
+
+                if (secProvider.stockPriceError != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    secProvider.stockPriceError!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
 
@@ -422,6 +440,10 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
   }
 
   Widget _buildPeriodBanner(SecFinancialData data) {
+    final priceInfo = data.stockPriceAsOf != null
+        ? ' · Price as of ${DateFormat.jm().format(data.stockPriceAsOf!)}'
+        : '';
+
     return Card(
       color: Theme.of(context).colorScheme.secondaryContainer,
       child: Padding(
@@ -436,7 +458,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Data: ${data.periodDescription}',
+                'Data: ${data.periodDescription}$priceInfo',
                 style: TextStyle(
                   color:
                       Theme.of(context).colorScheme.onSecondaryContainer,

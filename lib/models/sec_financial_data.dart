@@ -19,6 +19,10 @@ class SecFinancialData extends Equatable {
   final double? cashAndEquivalents;
   final double? sharesDiluted;
 
+  // Stock price (from Yahoo Finance)
+  final double? currentStockPrice;
+  final DateTime? stockPriceAsOf;
+
   // TTM metadata
   final String periodDescription;
   final DateTime? periodEndDate;
@@ -37,10 +41,38 @@ class SecFinancialData extends Equatable {
     this.totalDebt,
     this.cashAndEquivalents,
     this.sharesDiluted,
+    this.currentStockPrice,
+    this.stockPriceAsOf,
     required this.periodDescription,
     this.periodEndDate,
     this.isTtm = false,
   });
+
+  /// Create a copy with updated stock price fields.
+  SecFinancialData copyWithPrice({
+    double? currentStockPrice,
+    DateTime? stockPriceAsOf,
+  }) {
+    return SecFinancialData(
+      cik: cik,
+      ticker: ticker,
+      companyName: companyName,
+      revenue: revenue,
+      operatingIncome: operatingIncome,
+      netIncome: netIncome,
+      operatingCashFlow: operatingCashFlow,
+      capex: capex,
+      depreciation: depreciation,
+      totalDebt: totalDebt,
+      cashAndEquivalents: cashAndEquivalents,
+      sharesDiluted: sharesDiluted,
+      currentStockPrice: currentStockPrice ?? this.currentStockPrice,
+      stockPriceAsOf: stockPriceAsOf ?? this.stockPriceAsOf,
+      periodDescription: periodDescription,
+      periodEndDate: periodEndDate,
+      isTtm: isTtm,
+    );
+  }
 
   /// Free Cash Flow = Operating Cash Flow - |CapEx|
   double? get freeCashFlow {
@@ -72,6 +104,8 @@ class SecFinancialData extends Equatable {
         totalDebt,
         cashAndEquivalents,
         sharesDiluted,
+        currentStockPrice,
+        stockPriceAsOf,
         periodDescription,
         periodEndDate,
         isTtm,
