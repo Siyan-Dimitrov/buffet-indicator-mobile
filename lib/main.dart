@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'providers/analysis_provider.dart';
+import 'providers/sec_provider.dart';
 import 'screens/home_screen.dart';
 import 'utils/theme.dart';
 
@@ -23,6 +24,7 @@ class BuffetIndicatorApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AnalysisProvider()),
+        ChangeNotifierProvider(create: (_) => SecProvider()..init()),
       ],
       child: MaterialApp(
         title: 'Buffet Indicator',

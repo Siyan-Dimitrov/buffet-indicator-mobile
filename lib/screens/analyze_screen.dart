@@ -3,11 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/financial_data.dart';
+import '../models/sec_financial_data.dart';
 import '../providers/analysis_provider.dart';
-import '../utils/theme.dart';
+import '../providers/sec_provider.dart';
 import '../widgets/grade_card.dart';
 import '../widgets/metric_card.dart';
 import '../widgets/prescription_card.dart';
+import '../widgets/ticker_search_field.dart';
 
 class AnalyzeScreen extends StatefulWidget {
   const AnalyzeScreen({super.key});
@@ -30,6 +32,15 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
   final _totalDebtController = TextEditingController();
   final _cashController = TextEditingController();
   final _ebitdaController = TextEditingController();
+  final _stockPriceController = TextEditingController();
+
+  double? _sharesDiluted;
+
+  @override
+  void initState() {
+    super.initState();
+    _stockPriceController.addListener(_onStockPriceChanged);
+  }
 
   @override
   void dispose() {
@@ -43,7 +54,46 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     _totalDebtController.dispose();
     _cashController.dispose();
     _ebitdaController.dispose();
+    _stockPriceController.dispose();
     super.dispose();
+  }
+
+  void _onStockPriceChanged() {
+    if (_sharesDiluted == null) return;
+    final price = double.tryParse(_stockPriceController.text);
+    if (price != null) {
+      final marketCap = price * _sharesDiluted!;
+      _marketCapController.text = _formatForForm(marketCap);
+    }
+  }
+
+  /// Convert raw dollars to millions for the form.
+  String _formatForForm(double? value) {
+    if (value == null) return '';
+    return (value / 1e6).toStringAsFixed(2);
+  }
+
+  void _autoPopulate(SecFinancialData data) {
+    _companyNameController.text = data.companyName;
+    _tickerController.text = data.ticker;
+    _revenueController.text = _formatForForm(data.revenue);
+    _operatingIncomeController.text = _formatForForm(data.operatingIncome);
+    _netIncomeController.text = _formatForForm(data.netIncome);
+    _fcfController.text = _formatForForm(data.freeCashFlow);
+    _totalDebtController.text = _formatForForm(data.totalDebt);
+    _cashController.text = _formatForForm(data.cashAndEquivalents);
+    _ebitdaController.text = _formatForForm(data.calculatedEbitda);
+
+    _sharesDiluted = data.sharesDiluted;
+
+    // If user already entered a stock price, calculate market cap
+    final price = double.tryParse(_stockPriceController.text);
+    if (price != null && _sharesDiluted != null) {
+      final marketCap = price * _sharesDiluted!;
+      _marketCapController.text = _formatForForm(marketCap);
+    } else {
+      _marketCapController.text = '';
+    }
   }
 
   void _submitAnalysis() {
@@ -76,7 +126,10 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     _totalDebtController.clear();
     _cashController.clear();
     _ebitdaController.clear();
+    _stockPriceController.clear();
+    _sharesDiluted = null;
     context.read<AnalysisProvider>().clearResult();
+    context.read<SecProvider>().clearSelection();
   }
 
   @override
@@ -109,8 +162,8 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
           ),
         ],
       ),
-      body: Consumer<AnalysisProvider>(
-        builder: (context, provider, child) {
+      body: Consumer2<AnalysisProvider, SecProvider>(
+        builder: (context, analysisProvider, secProvider, child) {
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -129,12 +182,14 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                provider.selectedProfile.name,
-                                style: Theme.of(context).textTheme.titleMedium,
+                                analysisProvider.selectedProfile.name,
+                                style:
+                                    Theme.of(context).textTheme.titleMedium,
                               ),
                               Text(
-                                provider.selectedProfile.description,
-                                style: Theme.of(context).textTheme.bodySmall,
+                                analysisProvider.selectedProfile.description,
+                                style:
+                                    Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
                           ),
@@ -143,6 +198,46 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
+
+                // Ticker search
+                TickerSearchField(
+                  onCompanySelected: (company) {
+                    // Auto-populate will happen via the listener below
+                  },
+                ),
+
+                // Listen for financial data and auto-populate
+                if (secProvider.financialData != null) ...[
+                  const SizedBox(height: 8),
+                  _buildPeriodBanner(secProvider.financialData!),
+                  const SizedBox(height: 8),
+                  FilledButton.tonal(
+                    onPressed: () =>
+                        _autoPopulate(secProvider.financialData!),
+                    child:
+                        const Text('Auto-populate Financial Data'),
+                  ),
+                ],
+
+                if (secProvider.error != null) ...[
+                  const SizedBox(height: 8),
+                  Card(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        secProvider.error!,
+                        style: TextStyle(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onErrorContainer,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
                 const SizedBox(height: 16),
 
                 // Input form
@@ -174,11 +269,33 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                                 labelText: 'Ticker',
                                 hintText: 'AAPL',
                               ),
-                              textCapitalization: TextCapitalization.characters,
+                              textCapitalization:
+                                  TextCapitalization.characters,
                               validator: (value) =>
                                   value?.isEmpty == true ? 'Required' : null,
                             ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Stock price field
+                      TextFormField(
+                        controller: _stockPriceController,
+                        decoration: const InputDecoration(
+                          labelText: 'Current Stock Price',
+                          hintText: 'e.g., 195.50',
+                          prefixText: '\$ ',
+                          helperText:
+                              'Required for market cap calculation',
+                        ),
+                        keyboardType:
+                            const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                              RegExp(r'^\d*\.?\d*')),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -193,11 +310,15 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                       _buildNumberField(_revenueController, 'Revenue'),
                       _buildNumberField(
                           _operatingIncomeController, 'Operating Income'),
-                      _buildNumberField(_netIncomeController, 'Net Income'),
+                      _buildNumberField(
+                          _netIncomeController, 'Net Income'),
                       _buildNumberField(_fcfController, 'Free Cash Flow'),
-                      _buildNumberField(_marketCapController, 'Market Cap'),
-                      _buildNumberField(_totalDebtController, 'Total Debt'),
-                      _buildNumberField(_cashController, 'Cash & Equivalents'),
+                      _buildNumberField(
+                          _marketCapController, 'Market Cap'),
+                      _buildNumberField(
+                          _totalDebtController, 'Total Debt'),
+                      _buildNumberField(
+                          _cashController, 'Cash & Equivalents'),
                       _buildNumberField(_ebitdaController, 'EBITDA'),
 
                       const SizedBox(height: 16),
@@ -215,9 +336,10 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                           Expanded(
                             flex: 2,
                             child: FilledButton(
-                              onPressed:
-                                  provider.isLoading ? null : _submitAnalysis,
-                              child: provider.isLoading
+                              onPressed: analysisProvider.isLoading
+                                  ? null
+                                  : _submitAnalysis,
+                              child: analysisProvider.isLoading
                                   ? const SizedBox(
                                       height: 20,
                                       width: 20,
@@ -235,16 +357,18 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                 ),
 
                 // Error message
-                if (provider.error != null) ...[
+                if (analysisProvider.error != null) ...[
                   const SizedBox(height: 16),
                   Card(
                     color: Theme.of(context).colorScheme.errorContainer,
                     child: Padding(
                       padding: const EdgeInsets.all(12),
                       child: Text(
-                        provider.error!,
+                        analysisProvider.error!,
                         style: TextStyle(
-                          color: Theme.of(context).colorScheme.onErrorContainer,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onErrorContainer,
                         ),
                       ),
                     ),
@@ -252,13 +376,13 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                 ],
 
                 // Results
-                if (provider.currentResult != null) ...[
+                if (analysisProvider.currentResult != null) ...[
                   const SizedBox(height: 24),
                   const Divider(),
                   const SizedBox(height: 16),
 
                   // Grade card
-                  GradeCard(result: provider.currentResult!),
+                  GradeCard(result: analysisProvider.currentResult!),
                   const SizedBox(height: 16),
 
                   // Metrics cards
@@ -267,7 +391,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
-                  ...provider.currentResult!.criteria.map(
+                  ...analysisProvider.currentResult!.criteria.map(
                     (criterion) => Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: MetricCard(criterion: criterion),
@@ -275,7 +399,8 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                   ),
 
                   // Prescriptions
-                  if (provider.currentResult!.prescriptions.isNotEmpty) ...[
+                  if (analysisProvider
+                      .currentResult!.prescriptions.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Text(
                       'Prescriptions',
@@ -283,7 +408,8 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                     ),
                     const SizedBox(height: 8),
                     PrescriptionCard(
-                      prescriptions: provider.currentResult!.prescriptions,
+                      prescriptions:
+                          analysisProvider.currentResult!.prescriptions,
                     ),
                   ],
                 ],
@@ -291,6 +417,42 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildPeriodBanner(SecFinancialData data) {
+    return Card(
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            Icon(
+              Icons.calendar_today,
+              size: 16,
+              color: Theme.of(context).colorScheme.onSecondaryContainer,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Data: ${data.periodDescription}',
+                style: TextStyle(
+                  color:
+                      Theme.of(context).colorScheme.onSecondaryContainer,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            if (data.isTtm)
+              const Chip(
+                label: Text('TTM'),
+                labelStyle: TextStyle(fontSize: 11),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.all(0),
+              ),
+          ],
+        ),
       ),
     );
   }
