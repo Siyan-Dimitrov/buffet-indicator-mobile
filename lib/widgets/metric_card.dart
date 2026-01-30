@@ -5,10 +5,12 @@ import '../utils/theme.dart';
 
 class MetricCard extends StatelessWidget {
   final CriterionResult criterion;
+  final String? commentary;
 
   const MetricCard({
     super.key,
     required this.criterion,
+    this.commentary,
   });
 
   @override
@@ -87,6 +89,18 @@ class MetricCard extends StatelessWidget {
                 ),
               ],
             ),
+
+            // Commentary
+            if (commentary != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                commentary!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontStyle: FontStyle.italic,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
           ],
         ),
       ),

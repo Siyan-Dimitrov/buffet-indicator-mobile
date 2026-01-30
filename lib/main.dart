@@ -13,17 +13,23 @@ void main() async {
   // Initialize Hive for local storage
   await Hive.initFlutter();
 
-  runApp(const BuffetIndicatorApp());
+  // Open history box for persistent storage
+  final historyBox = await Hive.openBox<String>('analysis_history');
+
+  runApp(BuffetIndicatorApp(historyBox: historyBox));
 }
 
 class BuffetIndicatorApp extends StatelessWidget {
-  const BuffetIndicatorApp({super.key});
+  final Box<String> historyBox;
+
+  const BuffetIndicatorApp({super.key, required this.historyBox});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AnalysisProvider()),
+        ChangeNotifierProvider(
+            create: (_) => AnalysisProvider(historyBox: historyBox)),
         ChangeNotifierProvider(create: (_) => SecProvider()..init()),
       ],
       child: MaterialApp(

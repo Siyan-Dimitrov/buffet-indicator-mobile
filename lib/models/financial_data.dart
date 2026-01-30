@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:equatable/equatable.dart';
 
 /// Input data for quarterly financial analysis
@@ -100,6 +102,22 @@ class DerivedMetrics extends Equatable {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+        'fcfYield': fcfYield,
+        'operatingMargin': operatingMargin,
+        'netMargin': netMargin,
+        'leverage': leverage,
+      };
+
+  factory DerivedMetrics.fromJson(Map<String, dynamic> json) {
+    return DerivedMetrics(
+      fcfYield: (json['fcfYield'] as num).toDouble(),
+      operatingMargin: (json['operatingMargin'] as num).toDouble(),
+      netMargin: (json['netMargin'] as num).toDouble(),
+      leverage: (json['leverage'] as num).toDouble(),
+    );
+  }
+
   @override
   List<Object?> get props => [fcfYield, operatingMargin, netMargin, leverage];
 }
@@ -130,6 +148,13 @@ class InvestorProfile extends Equatable {
         minNetMargin,
         maxLeverage,
       ];
+
+  factory InvestorProfile.fromName(String name) {
+    return all.firstWhere(
+      (p) => p.name == name,
+      orElse: () => buffett,
+    );
+  }
 
   // Predefined investor profiles
   static const buffett = InvestorProfile(
@@ -218,6 +243,40 @@ class AnalysisResult extends Equatable {
     required this.analyzedAt,
   });
 
+  Map<String, dynamic> toJson() => {
+        'inputs': inputs.toJson(),
+        'metrics': metrics.toJson(),
+        'profileName': profile.name,
+        'grade': grade,
+        'score': score,
+        'criteria': criteria.map((c) => c.toJson()).toList(),
+        'prescriptions': prescriptions,
+        'analyzedAt': analyzedAt.toIso8601String(),
+      };
+
+  factory AnalysisResult.fromJson(Map<String, dynamic> json) {
+    return AnalysisResult(
+      inputs: FinancialInputs.fromJson(json['inputs'] as Map<String, dynamic>),
+      metrics:
+          DerivedMetrics.fromJson(json['metrics'] as Map<String, dynamic>),
+      profile: InvestorProfile.fromName(json['profileName'] as String),
+      grade: json['grade'] as String,
+      score: json['score'] as int,
+      criteria: (json['criteria'] as List)
+          .map((c) => CriterionResult.fromJson(c as Map<String, dynamic>))
+          .toList(),
+      prescriptions: (json['prescriptions'] as List).cast<String>(),
+      analyzedAt: DateTime.parse(json['analyzedAt'] as String),
+    );
+  }
+
+  String toJsonString() => jsonEncode(toJson());
+
+  factory AnalysisResult.fromJsonString(String jsonString) {
+    return AnalysisResult.fromJson(
+        jsonDecode(jsonString) as Map<String, dynamic>);
+  }
+
   @override
   List<Object?> get props => [
         inputs,
@@ -248,6 +307,26 @@ class CriterionResult extends Equatable {
     required this.unit,
     this.isMaximum = false,
   });
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'actualValue': actualValue,
+        'threshold': threshold,
+        'passed': passed,
+        'unit': unit,
+        'isMaximum': isMaximum,
+      };
+
+  factory CriterionResult.fromJson(Map<String, dynamic> json) {
+    return CriterionResult(
+      name: json['name'] as String,
+      actualValue: (json['actualValue'] as num).toDouble(),
+      threshold: (json['threshold'] as num).toDouble(),
+      passed: json['passed'] as bool,
+      unit: json['unit'] as String,
+      isMaximum: json['isMaximum'] as bool? ?? false,
+    );
+  }
 
   @override
   List<Object?> get props => [

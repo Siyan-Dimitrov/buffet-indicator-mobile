@@ -2,6 +2,13 @@ import '../models/financial_data.dart';
 
 /// Service for performing financial analysis calculations
 class AnalysisService {
+  /// Analyze financial data against all investor profiles
+  List<AnalysisResult> analyzeAll(FinancialInputs inputs) {
+    return InvestorProfile.all
+        .map((profile) => analyze(inputs, profile))
+        .toList();
+  }
+
   /// Analyze financial data against an investor profile
   AnalysisResult analyze(FinancialInputs inputs, InvestorProfile profile) {
     final metrics = DerivedMetrics.fromInputs(inputs);

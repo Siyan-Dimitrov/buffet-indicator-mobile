@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart' show Share;
 
 import '../providers/analysis_provider.dart';
+import '../utils/investor_content.dart';
 import '../utils/theme.dart';
 
 class HistoryScreen extends StatelessWidget {
@@ -133,11 +135,29 @@ class HistoryScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    trailing: Text(
-                      '${result.score}%',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: AppTheme.getGradeColor(result.grade),
-                          ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${result.score}%',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(
+                                color: AppTheme.getGradeColor(result.grade),
+                              ),
+                        ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          icon: const Icon(Icons.share, size: 18),
+                          tooltip: 'Share',
+                          onPressed: () {
+                            final text =
+                                InvestorContent.generateShareText(result);
+                            Share.share(text);
+                          },
+                        ),
+                      ],
                     ),
                     isThreeLine: true,
                   ),

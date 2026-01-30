@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart' show Share;
 
 import '../models/financial_data.dart';
 import '../models/sec_financial_data.dart';
 import '../providers/analysis_provider.dart';
 import '../providers/sec_provider.dart';
+import '../utils/investor_content.dart';
+import '../widgets/comparison_table.dart';
 import '../widgets/grade_card.dart';
 import '../widgets/metric_card.dart';
 import '../widgets/prescription_card.dart';
 import '../widgets/ticker_search_field.dart';
+import '../widgets/verdict_banner.dart';
 
 class AnalyzeScreen extends StatefulWidget {
   const AnalyzeScreen({super.key});
@@ -101,6 +105,11 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
         _marketCapController.text = '';
       }
     }
+
+    // Auto-analyze after populating
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _submitAnalysis();
+    });
   }
 
   void _submitAnalysis() {
@@ -120,6 +129,30 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
 
       context.read<AnalysisProvider>().analyze(inputs);
     }
+  }
+
+  void _compareAllInvestors() {
+    if (_formKey.currentState!.validate()) {
+      final inputs = FinancialInputs(
+        companyName: _companyNameController.text,
+        ticker: _tickerController.text.toUpperCase(),
+        revenue: double.parse(_revenueController.text),
+        operatingIncome: double.parse(_operatingIncomeController.text),
+        netIncome: double.parse(_netIncomeController.text),
+        freeCashFlow: double.parse(_fcfController.text),
+        marketCap: double.parse(_marketCapController.text),
+        totalDebt: double.parse(_totalDebtController.text),
+        cashAndEquivalents: double.parse(_cashController.text),
+        ebitda: double.parse(_ebitdaController.text),
+      );
+
+      context.read<AnalysisProvider>().compareAll(inputs);
+    }
+  }
+
+  void _shareResult(AnalysisResult result) {
+    final text = InvestorContent.generateShareText(result);
+    Share.share(text);
   }
 
   void _clearForm() {
@@ -222,8 +255,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                   FilledButton.tonal(
                     onPressed: () =>
                         _autoPopulate(secProvider.financialData!),
-                    child:
-                        const Text('Auto-populate Financial Data'),
+                    child: const Text('Load & Analyze'),
                   ),
                 ],
 
@@ -391,6 +423,17 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                           ),
                         ],
                       ),
+
+                      const SizedBox(height: 8),
+
+                      // Compare All Investors button
+                      OutlinedButton.icon(
+                        onPressed: analysisProvider.isLoading
+                            ? null
+                            : _compareAllInvestors,
+                        icon: const Icon(Icons.compare_arrows, size: 18),
+                        label: const Text('Compare All Investors'),
+                      ),
                     ],
                   ),
                 ),
@@ -433,11 +476,33 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                   const Divider(),
                   const SizedBox(height: 16),
 
-                  // Grade card
-                  GradeCard(result: analysisProvider.currentResult!),
+                  // Verdict banner
+                  VerdictBanner(result: analysisProvider.currentResult!),
                   const SizedBox(height: 16),
 
-                  // Metrics cards
+                  // Grade card with share button
+                  GradeCard(result: analysisProvider.currentResult!),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton.filled(
+                      onPressed: () =>
+                          _shareResult(analysisProvider.currentResult!),
+                      icon: const Icon(Icons.share, size: 18),
+                      tooltip: 'Share Result',
+                      style: IconButton.styleFrom(
+                        backgroundColor: Theme.of(context)
+                            .colorScheme
+                            .secondaryContainer,
+                        foregroundColor: Theme.of(context)
+                            .colorScheme
+                            .onSecondaryContainer,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Metrics cards with commentary
                   Text(
                     'Metrics vs Thresholds',
                     style: Theme.of(context).textTheme.titleMedium,
@@ -446,7 +511,13 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                   ...analysisProvider.currentResult!.criteria.map(
                     (criterion) => Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: MetricCard(criterion: criterion),
+                      child: MetricCard(
+                        criterion: criterion,
+                        commentary: InvestorContent.getMetricCommentary(
+                          analysisProvider.currentResult!.profile,
+                          criterion.name,
+                        ),
+                      ),
                     ),
                   ),
 
@@ -464,6 +535,22 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                           analysisProvider.currentResult!.prescriptions,
                     ),
                   ],
+                ],
+
+                // Comparison table
+                if (analysisProvider.comparisonResults != null) ...[
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  ComparisonTable(
+                    results: analysisProvider.comparisonResults!,
+                    onRowTap: (result) {
+                      // Switch to that investor's detailed view
+                      final provider = context.read<AnalysisProvider>();
+                      provider.selectProfile(result.profile);
+                      _submitAnalysis();
+                    },
+                  ),
                 ],
               ],
             ),
