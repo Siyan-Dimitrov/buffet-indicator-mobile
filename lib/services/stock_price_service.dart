@@ -39,8 +39,12 @@ class StockPriceService {
       final marketState = meta?['marketState'] as String?;
 
       return (price: price, marketState: marketState);
-    } on DioException {
-      return (price: null, marketState: null);
+    } on DioException catch (e) {
+      // Ticker not found is a valid "no data" case, not an error
+      if (e.response?.statusCode == 404) {
+        return (price: null, marketState: null);
+      }
+      rethrow;
     }
   }
 }

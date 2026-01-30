@@ -44,7 +44,8 @@ class AnalysisProvider extends ChangeNotifier {
         _history = _history.sublist(0, 50);
       }
     } catch (e) {
-      _error = 'Analysis failed: ${e.toString()}';
+      _error = 'Analysis failed. Please check your inputs and try again.';
+      debugPrint('Analysis error: $e');
     } finally {
       _isLoading = false;
       notifyListeners();

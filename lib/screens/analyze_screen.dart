@@ -230,7 +230,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                 if (secProvider.stockPriceError != null) ...[
                   const SizedBox(height: 4),
                   Text(
-                    secProvider.stockPriceError!,
+                    secProvider.stockPriceError!.userMessage,
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 12,
@@ -244,13 +244,34 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                     color: Theme.of(context).colorScheme.errorContainer,
                     child: Padding(
                       padding: const EdgeInsets.all(12),
-                      child: Text(
-                        secProvider.error!,
-                        style: TextStyle(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onErrorContainer,
-                        ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onErrorContainer,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              secProvider.error!.userMessage,
+                              style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onErrorContainer,
+                              ),
+                            ),
+                          ),
+                          if (secProvider.error!.isRetryable)
+                            TextButton.icon(
+                              onPressed: secProvider.isLoading
+                                  ? null
+                                  : () => secProvider.retry(),
+                              icon: const Icon(Icons.refresh, size: 18),
+                              label: const Text('Retry'),
+                            ),
+                        ],
                       ),
                     ),
                   ),
@@ -381,13 +402,26 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                     color: Theme.of(context).colorScheme.errorContainer,
                     child: Padding(
                       padding: const EdgeInsets.all(12),
-                      child: Text(
-                        analysisProvider.error!,
-                        style: TextStyle(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onErrorContainer,
-                        ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onErrorContainer,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              analysisProvider.error!,
+                              style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onErrorContainer,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

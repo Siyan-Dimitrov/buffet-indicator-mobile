@@ -5,6 +5,7 @@ import '../models/sec_financial_data.dart';
 import '../services/sec_api_service.dart';
 import '../services/stock_price_service.dart';
 import '../services/ticker_cache_service.dart';
+import '../utils/app_exceptions.dart';
 
 /// State management for SEC EDGAR API features.
 class SecProvider extends ChangeNotifier {
@@ -14,11 +15,13 @@ class SecProvider extends ChangeNotifier {
 
   List<SecCompany> _searchResults = [];
   SecCompany? _selectedCompany;
+  SecCompany? _lastSelectedCompany;
   SecFinancialData? _financialData;
   bool _isLoading = false;
   bool _isCacheLoading = false;
-  String? _error;
-  String? _stockPriceError;
+  AppException? _error;
+  AppException? _stockPriceError;
+  bool _lastErrorFromCache = false;
 
   SecProvider({
     SecApiService? apiService,
@@ -33,8 +36,8 @@ class SecProvider extends ChangeNotifier {
   SecFinancialData? get financialData => _financialData;
   bool get isLoading => _isLoading;
   bool get isCacheLoading => _isCacheLoading;
-  String? get error => _error;
-  String? get stockPriceError => _stockPriceError;
+  AppException? get error => _error;
+  AppException? get stockPriceError => _stockPriceError;
 
   /// Initialize ticker cache. Call on app startup.
   Future<void> init() async {
@@ -54,7 +57,9 @@ class SecProvider extends ChangeNotifier {
       final tickers = await _apiService.fetchAllTickers();
       await _cacheService.updateCache(tickers);
     } catch (e) {
-      _error = 'Failed to fetch tickers: $e';
+      _error = AppException.fromGeneric(e, context: 'Failed to load ticker list');
+      _lastErrorFromCache = true;
+      debugPrint('refreshTickerCache error: $_error');
     } finally {
       _isCacheLoading = false;
       notifyListeners();
@@ -71,38 +76,83 @@ class SecProvider extends ChangeNotifier {
   Future<void> selectCompany(SecCompany company) async {
     try {
       _selectedCompany = company;
+      _lastSelectedCompany = company;
       _financialData = null;
       _isLoading = true;
       _error = null;
       _stockPriceError = null;
+      _lastErrorFromCache = false;
       notifyListeners();
 
       // Fetch SEC data and stock price in parallel
       late final SecFinancialData? secData;
       late final ({double? price, String? marketState}) priceResult;
 
+      Object? secError;
+      Object? priceError;
+
       await Future.wait([
-        _apiService.getFinancialData(company).then((v) => secData = v),
-        _stockPriceService.getPrice(company.ticker).then((v) => priceResult = v),
+        _apiService.getFinancialData(company).then((v) => secData = v).catchError((Object e) {
+          secError = e;
+          secData = null;
+          return null;
+        }),
+        _stockPriceService.getPrice(company.ticker).then((v) => priceResult = v).catchError((Object e) {
+          priceError = e;
+          priceResult = (price: null, marketState: null);
+          return priceResult;
+        }),
       ]);
+
+      // Handle SEC data error (critical)
+      if (secError != null) {
+        _error = AppException.fromGeneric(secError!, context: 'Failed to load financial data');
+        debugPrint('SEC data fetch error: $_error');
+        return;
+      }
+
+      // Handle stock price error (non-fatal)
+      if (priceError != null) {
+        _stockPriceError = AppException.fromGeneric(priceError!, context: 'Stock price unavailable');
+        debugPrint('Stock price fetch error: $_stockPriceError');
+      }
 
       _financialData = secData;
 
       if (_financialData == null) {
-        _error = 'No financial data available for ${company.ticker}';
+        _error = const AppException(
+          type: AppErrorType.notFound,
+          userMessage: 'No financial data available for this company.',
+        );
       } else if (priceResult.price != null) {
         _financialData = _financialData!.copyWithPrice(
           currentStockPrice: priceResult.price,
           stockPriceAsOf: DateTime.now(),
         );
-      } else {
-        _stockPriceError = 'Could not fetch stock price for ${company.ticker}';
+      } else if (_stockPriceError == null) {
+        _stockPriceError = const AppException(
+          type: AppErrorType.notFound,
+          userMessage: 'Stock price not available for this ticker.',
+        );
       }
+    } on AppException catch (e) {
+      _error = e;
+      debugPrint('selectCompany error: $e');
     } catch (e) {
-      _error = 'Failed to fetch data: $e';
+      _error = AppException.fromGeneric(e, context: 'Failed to fetch data');
+      debugPrint('selectCompany unexpected error: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  /// Retry the last failed operation (cache refresh or company selection).
+  Future<void> retry() async {
+    if (_lastErrorFromCache) {
+      await refreshTickerCache();
+    } else if (_lastSelectedCompany != null) {
+      await selectCompany(_lastSelectedCompany!);
     }
   }
 
