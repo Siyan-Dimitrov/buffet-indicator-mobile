@@ -35,73 +35,83 @@ class MetricCard extends StatelessWidget {
     }
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    criterion.name,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                ),
-                Icon(
-                  criterion.passed ? Icons.check_circle : Icons.cancel,
-                  color: statusColor,
-                  size: 20,
-                ),
-              ],
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(
+              color: statusColor,
+              width: 4,
             ),
-            const SizedBox(height: 12),
-
-            // Progress bar
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: progress.clamp(0, 1),
-                minHeight: 8,
-                backgroundColor:
-                    Theme.of(context).colorScheme.surfaceContainerHighest,
-                valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            // Values
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Actual: ${criterion.actualValue.toStringAsFixed(2)}${criterion.unit}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: statusColor,
-                      ),
-                ),
-                Text(
-                  '${criterion.isMaximum ? 'Max' : 'Min'}: ${criterion.threshold.toStringAsFixed(2)}${criterion.unit}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                ),
-              ],
-            ),
-
-            // Commentary
-            if (commentary != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                commentary!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontStyle: FontStyle.italic,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      criterion.name,
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
+                  ),
+                  Icon(
+                    criterion.passed ? Icons.check_circle : Icons.cancel,
+                    color: statusColor,
+                    size: 20,
+                  ),
+                ],
               ),
+              const SizedBox(height: 12),
+
+              // Progress bar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(5),
+                child: LinearProgressIndicator(
+                  value: progress.clamp(0, 1),
+                  minHeight: 10,
+                  backgroundColor:
+                      Theme.of(context).colorScheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Values
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Actual: ${criterion.actualValue.toStringAsFixed(2)}${criterion.unit}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: statusColor,
+                        ),
+                  ),
+                  Text(
+                    '${criterion.isMaximum ? 'Max' : 'Min'}: ${criterion.threshold.toStringAsFixed(2)}${criterion.unit}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                  ),
+                ],
+              ),
+
+              // Commentary
+              if (commentary != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  commentary!,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontStyle: FontStyle.italic,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

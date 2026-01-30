@@ -204,12 +204,102 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
       ),
       body: Consumer2<AnalysisProvider, SecProvider>(
         builder: (context, analysisProvider, secProvider, child) {
+          final hasResults = analysisProvider.currentResult != null;
+          final hasComparison = analysisProvider.comparisonResults != null;
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Profile indicator
+                // ──────────────────────────────────
+                // RESULTS SECTION (only when results exist)
+                // ──────────────────────────────────
+                if (hasResults) ...[
+                  // 1. Verdict banner (hero)
+                  VerdictBanner(result: analysisProvider.currentResult!),
+                  const SizedBox(height: 16),
+
+                  // 2. Grade card with share button
+                  GradeCard(result: analysisProvider.currentResult!),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton.filled(
+                      onPressed: () =>
+                          _shareResult(analysisProvider.currentResult!),
+                      icon: const Icon(Icons.share, size: 18),
+                      tooltip: 'Share Result',
+                      style: IconButton.styleFrom(
+                        backgroundColor: Theme.of(context)
+                            .colorScheme
+                            .secondaryContainer,
+                        foregroundColor: Theme.of(context)
+                            .colorScheme
+                            .onSecondaryContainer,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // 3. Comparison table (if available)
+                  if (hasComparison) ...[
+                    ComparisonTable(
+                      results: analysisProvider.comparisonResults!,
+                      onRowTap: (result) {
+                        final provider = context.read<AnalysisProvider>();
+                        provider.selectProfile(result.profile);
+                        _submitAnalysis();
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // 4. Metrics cards with commentary
+                  Text(
+                    'Metrics vs Thresholds',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  ...analysisProvider.currentResult!.criteria.map(
+                    (criterion) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: MetricCard(
+                        criterion: criterion,
+                        commentary: InvestorContent.getMetricCommentary(
+                          analysisProvider.currentResult!.profile,
+                          criterion.name,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Prescriptions
+                  if (analysisProvider
+                      .currentResult!.prescriptions.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Prescriptions',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    PrescriptionCard(
+                      prescriptions:
+                          analysisProvider.currentResult!.prescriptions,
+                    ),
+                  ],
+
+                  // 5. Divider between results and form
+                  const SizedBox(height: 24),
+                  const Divider(thickness: 2),
+                  const SizedBox(height: 16),
+                ],
+
+                // ──────────────────────────────────
+                // FORM SECTION
+                // ──────────────────────────────────
+
+                // 6. Profile indicator
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(12),
@@ -240,7 +330,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Ticker search
+                // 7. Ticker search
                 TickerSearchField(
                   onCompanySelected: (company) {
                     // Auto-populate will happen via the listener below
@@ -311,132 +401,8 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
 
                 const SizedBox(height: 16),
 
-                // Input form
-                Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Company info
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: TextFormField(
-                              controller: _companyNameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Company Name',
-                                hintText: 'e.g., Apple Inc.',
-                              ),
-                              validator: (value) =>
-                                  value?.isEmpty == true ? 'Required' : null,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _tickerController,
-                              decoration: const InputDecoration(
-                                labelText: 'Ticker',
-                                hintText: 'AAPL',
-                              ),
-                              textCapitalization:
-                                  TextCapitalization.characters,
-                              validator: (value) =>
-                                  value?.isEmpty == true ? 'Required' : null,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Stock price field
-                      TextFormField(
-                        controller: _stockPriceController,
-                        decoration: const InputDecoration(
-                          labelText: 'Current Stock Price',
-                          hintText: 'e.g., 195.50',
-                          prefixText: '\$ ',
-                          helperText:
-                              'Required for market cap calculation',
-                        ),
-                        keyboardType:
-                            const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(
-                              RegExp(r'^\d*\.?\d*')),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Financial inputs
-                      Text(
-                        'Financial Data (in millions \$)',
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      const SizedBox(height: 8),
-
-                      _buildNumberField(_revenueController, 'Revenue'),
-                      _buildNumberField(
-                          _operatingIncomeController, 'Operating Income'),
-                      _buildNumberField(
-                          _netIncomeController, 'Net Income'),
-                      _buildNumberField(_fcfController, 'Free Cash Flow'),
-                      _buildNumberField(
-                          _marketCapController, 'Market Cap'),
-                      _buildNumberField(
-                          _totalDebtController, 'Total Debt'),
-                      _buildNumberField(
-                          _cashController, 'Cash & Equivalents'),
-                      _buildNumberField(_ebitdaController, 'EBITDA'),
-
-                      const SizedBox(height: 16),
-
-                      // Action buttons
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _clearForm,
-                              child: const Text('Clear'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 2,
-                            child: FilledButton(
-                              onPressed: analysisProvider.isLoading
-                                  ? null
-                                  : _submitAnalysis,
-                              child: analysisProvider.isLoading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Text('Analyze'),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      // Compare All Investors button
-                      OutlinedButton.icon(
-                        onPressed: analysisProvider.isLoading
-                            ? null
-                            : _compareAllInvestors,
-                        icon: const Icon(Icons.compare_arrows, size: 18),
-                        label: const Text('Compare All Investors'),
-                      ),
-                    ],
-                  ),
-                ),
+                // 8. Input form (collapsible when results exist)
+                _buildInputForm(context, analysisProvider, hasResults),
 
                 // Error message
                 if (analysisProvider.error != null) ...[
@@ -470,82 +436,14 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                   ),
                 ],
 
-                // Results
-                if (analysisProvider.currentResult != null) ...[
-                  const SizedBox(height: 24),
-                  const Divider(),
-                  const SizedBox(height: 16),
-
-                  // Verdict banner
-                  VerdictBanner(result: analysisProvider.currentResult!),
-                  const SizedBox(height: 16),
-
-                  // Grade card with share button
-                  GradeCard(result: analysisProvider.currentResult!),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: IconButton.filled(
-                      onPressed: () =>
-                          _shareResult(analysisProvider.currentResult!),
-                      icon: const Icon(Icons.share, size: 18),
-                      tooltip: 'Share Result',
-                      style: IconButton.styleFrom(
-                        backgroundColor: Theme.of(context)
-                            .colorScheme
-                            .secondaryContainer,
-                        foregroundColor: Theme.of(context)
-                            .colorScheme
-                            .onSecondaryContainer,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Metrics cards with commentary
-                  Text(
-                    'Metrics vs Thresholds',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  ...analysisProvider.currentResult!.criteria.map(
-                    (criterion) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: MetricCard(
-                        criterion: criterion,
-                        commentary: InvestorContent.getMetricCommentary(
-                          analysisProvider.currentResult!.profile,
-                          criterion.name,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Prescriptions
-                  if (analysisProvider
-                      .currentResult!.prescriptions.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      'Prescriptions',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    PrescriptionCard(
-                      prescriptions:
-                          analysisProvider.currentResult!.prescriptions,
-                    ),
-                  ],
-                ],
-
-                // Comparison table
-                if (analysisProvider.comparisonResults != null) ...[
+                // Comparison table when no single result (standalone compare)
+                if (!hasResults && hasComparison) ...[
                   const SizedBox(height: 24),
                   const Divider(),
                   const SizedBox(height: 16),
                   ComparisonTable(
                     results: analysisProvider.comparisonResults!,
                     onRowTap: (result) {
-                      // Switch to that investor's detailed view
                       final provider = context.read<AnalysisProvider>();
                       provider.selectProfile(result.profile);
                       _submitAnalysis();
@@ -556,6 +454,162 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildInputForm(
+    BuildContext context,
+    AnalysisProvider analysisProvider,
+    bool collapse,
+  ) {
+    final fields = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Company info
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: TextFormField(
+                controller: _companyNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Company Name',
+                  hintText: 'e.g., Apple Inc.',
+                ),
+                validator: (value) =>
+                    value?.isEmpty == true ? 'Required' : null,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextFormField(
+                controller: _tickerController,
+                decoration: const InputDecoration(
+                  labelText: 'Ticker',
+                  hintText: 'AAPL',
+                ),
+                textCapitalization: TextCapitalization.characters,
+                validator: (value) =>
+                    value?.isEmpty == true ? 'Required' : null,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Stock price field
+        TextFormField(
+          controller: _stockPriceController,
+          decoration: const InputDecoration(
+            labelText: 'Current Stock Price',
+            hintText: 'e.g., 195.50',
+            prefixText: '\$ ',
+            helperText: 'Required for market cap calculation',
+          ),
+          keyboardType: const TextInputType.numberWithOptions(
+            decimal: true,
+          ),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Financial inputs
+        Text(
+          'Financial Data (in millions \$)',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+
+        _buildNumberField(_revenueController, 'Revenue'),
+        _buildNumberField(_operatingIncomeController, 'Operating Income'),
+        _buildNumberField(_netIncomeController, 'Net Income'),
+        _buildNumberField(_fcfController, 'Free Cash Flow'),
+        _buildNumberField(_marketCapController, 'Market Cap'),
+        _buildNumberField(_totalDebtController, 'Total Debt'),
+        _buildNumberField(_cashController, 'Cash & Equivalents'),
+        _buildNumberField(_ebitdaController, 'EBITDA'),
+      ],
+    );
+
+    // 9. Action buttons (always visible, outside the collapsible)
+    final actionButtons = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _clearForm,
+                child: const Text('Clear'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: FilledButton(
+                onPressed:
+                    analysisProvider.isLoading ? null : _submitAnalysis,
+                child: analysisProvider.isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text('Analyze'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed:
+              analysisProvider.isLoading ? null : _compareAllInvestors,
+          icon: const Icon(Icons.compare_arrows, size: 18),
+          label: const Text('Compare All Investors'),
+        ),
+      ],
+    );
+
+    // Form wraps everything so _formKey.currentState is always accessible
+    if (collapse) {
+      return Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            Card(
+              child: ExpansionTile(
+                title: const Text('Financial Inputs'),
+                subtitle: const Text('Tap to edit inputs'),
+                leading: const Icon(Icons.edit_note),
+                initiallyExpanded: false,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: fields,
+                  ),
+                ],
+              ),
+            ),
+            actionButtons,
+          ],
+        ),
+      );
+    }
+
+    // No results — show form expanded normally
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: [
+          fields,
+          actionButtons,
+        ],
       ),
     );
   }

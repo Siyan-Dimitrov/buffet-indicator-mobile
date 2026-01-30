@@ -20,62 +20,90 @@ class ComparisonTable extends StatelessWidget {
       ..sort((a, b) => b.score.compareTo(a.score));
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Multi-Investor Comparison',
-              style: Theme.of(context).textTheme.titleMedium,
+      elevation: 6,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Colored header bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              sorted.first.inputs.companyName,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Multi-Investor Comparison',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onPrimaryContainer,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  sorted.first.inputs.companyName,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onPrimaryContainer
+                            .withOpacity(0.7),
+                      ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            ...sorted.map((result) => _buildRow(context, result)),
-          ],
-        ),
+          ),
+          // Rows
+          ...List.generate(sorted.length, (index) {
+            return _buildRow(context, sorted[index], index);
+          }),
+          const SizedBox(height: 4),
+        ],
       ),
     );
   }
 
-  Widget _buildRow(BuildContext context, AnalysisResult result) {
+  Widget _buildRow(BuildContext context, AnalysisResult result, int index) {
     final gradeColor = AppTheme.getGradeColor(result.grade);
     final passedCount = result.criteria.where((c) => c.passed).length;
+    final isEven = index % 2 == 0;
 
     return InkWell(
       onTap: onRowTap != null ? () => onRowTap!(result) : null,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Container(
+        color: isEven
+            ? Theme.of(context).colorScheme.surfaceContainerLowest
+            : Theme.of(context).colorScheme.surfaceContainerLow,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         child: Row(
           children: [
             // Grade circle
             Container(
-              width: 36,
-              height: 36,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
                 color: gradeColor.withOpacity(0.15),
                 shape: BoxShape.circle,
-                border: Border.all(color: gradeColor, width: 2),
+                border: Border.all(color: gradeColor, width: 2.5),
               ),
               child: Center(
                 child: Text(
                   result.grade,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: gradeColor,
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
 
             // Investor name
             Expanded(
@@ -88,6 +116,7 @@ class ComparisonTable extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     '$passedCount/4 criteria passed',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
