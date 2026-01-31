@@ -118,7 +118,7 @@ class ComparisonTable extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '$passedCount/4 criteria passed',
+                    '$passedCount/${result.criteria.length} criteria passed',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.outline,
                         ),

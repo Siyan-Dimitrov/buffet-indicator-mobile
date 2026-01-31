@@ -10,6 +10,7 @@ class SecFinancialData extends Equatable {
   final double? revenue;
   final double? operatingIncome;
   final double? netIncome;
+  final double? priorYearNetIncome;
   final double? operatingCashFlow;
   final double? capex;
   final double? depreciation;
@@ -17,6 +18,7 @@ class SecFinancialData extends Equatable {
   // Point-in-time metrics (latest value from 10-K or 10-Q)
   final double? totalDebt;
   final double? cashAndEquivalents;
+  final double? totalEquity;
   final double? sharesDiluted;
 
   // Stock price (from Yahoo Finance)
@@ -35,11 +37,13 @@ class SecFinancialData extends Equatable {
     this.revenue,
     this.operatingIncome,
     this.netIncome,
+    this.priorYearNetIncome,
     this.operatingCashFlow,
     this.capex,
     this.depreciation,
     this.totalDebt,
     this.cashAndEquivalents,
+    this.totalEquity,
     this.sharesDiluted,
     this.currentStockPrice,
     this.stockPriceAsOf,
@@ -60,11 +64,13 @@ class SecFinancialData extends Equatable {
       revenue: revenue,
       operatingIncome: operatingIncome,
       netIncome: netIncome,
+      priorYearNetIncome: priorYearNetIncome,
       operatingCashFlow: operatingCashFlow,
       capex: capex,
       depreciation: depreciation,
       totalDebt: totalDebt,
       cashAndEquivalents: cashAndEquivalents,
+      totalEquity: totalEquity,
       sharesDiluted: sharesDiluted,
       currentStockPrice: currentStockPrice ?? this.currentStockPrice,
       stockPriceAsOf: stockPriceAsOf ?? this.stockPriceAsOf,
@@ -90,6 +96,17 @@ class SecFinancialData extends Equatable {
     return operatingIncome;
   }
 
+  /// Year-over-year earnings growth rate (%).
+  /// Returns null if prior-year net income is unavailable or non-positive.
+  double? get earningsGrowthRate {
+    if (netIncome != null &&
+        priorYearNetIncome != null &&
+        priorYearNetIncome! > 0) {
+      return ((netIncome! - priorYearNetIncome!) / priorYearNetIncome!) * 100;
+    }
+    return null;
+  }
+
   @override
   List<Object?> get props => [
         cik,
@@ -98,11 +115,13 @@ class SecFinancialData extends Equatable {
         revenue,
         operatingIncome,
         netIncome,
+        priorYearNetIncome,
         operatingCashFlow,
         capex,
         depreciation,
         totalDebt,
         cashAndEquivalents,
+        totalEquity,
         sharesDiluted,
         currentStockPrice,
         stockPriceAsOf,

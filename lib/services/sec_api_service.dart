@@ -60,6 +60,10 @@ class SecApiService {
       'CashAndCashEquivalentsAtCarryingValue',
       'CashCashEquivalentsAndShortTermInvestments',
     ],
+    'stockholders_equity': [
+      'StockholdersEquity',
+      'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest',
+    ],
   };
 
   /// Shares can use either "shares" or "pure" unit types.
@@ -130,6 +134,10 @@ class SecApiService {
     final capex = _extractTtmValue(facts, flowTags['capex']!);
     final depreciation = _extractTtmValue(facts, flowTags['depreciation']!);
 
+    // Prior-year net income for earnings growth rate calculation
+    final priorYearNetIncome =
+        _extractPriorYearAnnualValue(facts, flowTags['net_income']!);
+
     // Point-in-time metrics
     final longTermDebt =
         _extractInstantValue(facts, instantTags['long_term_debt']!);
@@ -137,6 +145,8 @@ class SecApiService {
         _extractInstantValue(facts, instantTags['short_term_debt']!);
     final totalDebt = addNullable(longTermDebt, shortTermDebt);
     final cash = _extractInstantValue(facts, instantTags['cash']!);
+    final equity =
+        _extractInstantValue(facts, instantTags['stockholders_equity']!);
 
     // Shares (uses "shares" unit)
     final shares = _extractSharesValue(facts, sharesTags);
@@ -160,11 +170,13 @@ class SecApiService {
       revenue: revenue.value,
       operatingIncome: opIncome.value,
       netIncome: netIncome.value,
+      priorYearNetIncome: priorYearNetIncome,
       operatingCashFlow: opCashFlow.value,
       capex: capex.value?.abs(),
       depreciation: depreciation.value,
       totalDebt: totalDebt,
       cashAndEquivalents: cash,
+      totalEquity: equity,
       sharesDiluted: shares,
       periodDescription: periodDesc,
       periodEndDate: periodEndDate,
@@ -285,6 +297,47 @@ class SecApiService {
       value: ttmValue,
       description: 'TTM ending $currentFp ${mostRecentQ.fy}',
     );
+  }
+
+  /// Extract the prior-year annual value for a flow metric.
+  ///
+  /// When current data is TTM (newer quarters exist beyond the latest 10-K),
+  /// the "prior year" is the latest 10-K annual value (one year behind TTM).
+  /// When current data is just the latest 10-K, the "prior year" is the
+  /// second-most-recent 10-K annual value.
+  double? _extractPriorYearAnnualValue(
+    Map<String, dynamic> facts,
+    List<String> tags,
+  ) {
+    final entries = _parseEntries(facts, tags, unitType: 'USD');
+    if (entries.isEmpty) return null;
+
+    final annualEntries = entries
+        .where((e) => e.isAnnual && !e.isInstant)
+        .toList()
+      ..sort((a, b) => b.end.compareTo(a.end));
+
+    if (annualEntries.isEmpty) return null;
+
+    final latestAnnual = annualEntries.first;
+    final annualEndDate = DateTime.parse(latestAnnual.end);
+
+    // Check if there are newer quarterly filings (i.e., current value is TTM)
+    final hasNewerQuarterly = entries.any((e) =>
+        e.isQuarterly &&
+        !e.isInstant &&
+        DateTime.parse(e.end).isAfter(annualEndDate));
+
+    if (hasNewerQuarterly) {
+      // Current value is TTM — prior year is the latest annual
+      return latestAnnual.val;
+    } else {
+      // Current value is just the latest annual — prior year is second annual
+      if (annualEntries.length >= 2) {
+        return annualEntries[1].val;
+      }
+      return null;
+    }
   }
 
   /// Extract latest point-in-time value (balance sheet items).

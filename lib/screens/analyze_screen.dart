@@ -12,6 +12,7 @@ import '../utils/investor_content.dart';
 import '../widgets/comparison_table.dart';
 import '../widgets/grade_card.dart';
 import '../widgets/metric_card.dart';
+import '../widgets/metrics_dashboard.dart';
 import '../widgets/prescription_card.dart';
 import '../widgets/ticker_search_field.dart';
 import '../widgets/verdict_banner.dart';
@@ -37,6 +38,8 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
   final _totalDebtController = TextEditingController();
   final _cashController = TextEditingController();
   final _ebitdaController = TextEditingController();
+  final _totalEquityController = TextEditingController();
+  final _earningsGrowthRateController = TextEditingController();
   final _stockPriceController = TextEditingController();
 
   double? _sharesDiluted;
@@ -59,6 +62,8 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     _totalDebtController.dispose();
     _cashController.dispose();
     _ebitdaController.dispose();
+    _totalEquityController.dispose();
+    _earningsGrowthRateController.dispose();
     _stockPriceController.dispose();
     super.dispose();
   }
@@ -88,6 +93,13 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     _totalDebtController.text = _formatForForm(data.totalDebt);
     _cashController.text = _formatForForm(data.cashAndEquivalents);
     _ebitdaController.text = _formatForForm(data.calculatedEbitda);
+    _totalEquityController.text = _formatForForm(data.totalEquity);
+
+    // Auto-fill earnings growth rate if calculable from SEC data
+    if (data.earningsGrowthRate != null) {
+      _earningsGrowthRateController.text =
+          data.earningsGrowthRate!.toStringAsFixed(1);
+    }
 
     _sharesDiluted = data.sharesDiluted;
 
@@ -112,40 +124,36 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     });
   }
 
-  void _submitAnalysis() {
-    if (_formKey.currentState!.validate()) {
-      final inputs = FinancialInputs(
-        companyName: _companyNameController.text,
-        ticker: _tickerController.text.toUpperCase(),
-        revenue: double.parse(_revenueController.text),
-        operatingIncome: double.parse(_operatingIncomeController.text),
-        netIncome: double.parse(_netIncomeController.text),
-        freeCashFlow: double.parse(_fcfController.text),
-        marketCap: double.parse(_marketCapController.text),
-        totalDebt: double.parse(_totalDebtController.text),
-        cashAndEquivalents: double.parse(_cashController.text),
-        ebitda: double.parse(_ebitdaController.text),
-      );
+  FinancialInputs? _buildInputs() {
+    if (!_formKey.currentState!.validate()) return null;
+    final growthText = _earningsGrowthRateController.text.trim();
+    return FinancialInputs(
+      companyName: _companyNameController.text,
+      ticker: _tickerController.text.toUpperCase(),
+      revenue: double.parse(_revenueController.text),
+      operatingIncome: double.parse(_operatingIncomeController.text),
+      netIncome: double.parse(_netIncomeController.text),
+      freeCashFlow: double.parse(_fcfController.text),
+      marketCap: double.parse(_marketCapController.text),
+      totalDebt: double.parse(_totalDebtController.text),
+      cashAndEquivalents: double.parse(_cashController.text),
+      ebitda: double.parse(_ebitdaController.text),
+      totalEquity: double.parse(_totalEquityController.text),
+      earningsGrowthRate:
+          growthText.isNotEmpty ? double.tryParse(growthText) : null,
+    );
+  }
 
+  void _submitAnalysis() {
+    final inputs = _buildInputs();
+    if (inputs != null) {
       context.read<AnalysisProvider>().analyze(inputs);
     }
   }
 
   void _compareAllInvestors() {
-    if (_formKey.currentState!.validate()) {
-      final inputs = FinancialInputs(
-        companyName: _companyNameController.text,
-        ticker: _tickerController.text.toUpperCase(),
-        revenue: double.parse(_revenueController.text),
-        operatingIncome: double.parse(_operatingIncomeController.text),
-        netIncome: double.parse(_netIncomeController.text),
-        freeCashFlow: double.parse(_fcfController.text),
-        marketCap: double.parse(_marketCapController.text),
-        totalDebt: double.parse(_totalDebtController.text),
-        cashAndEquivalents: double.parse(_cashController.text),
-        ebitda: double.parse(_ebitdaController.text),
-      );
-
+    final inputs = _buildInputs();
+    if (inputs != null) {
       context.read<AnalysisProvider>().compareAll(inputs);
     }
   }
@@ -166,6 +174,8 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     _totalDebtController.clear();
     _cashController.clear();
     _ebitdaController.clear();
+    _totalEquityController.clear();
+    _earningsGrowthRateController.clear();
     _stockPriceController.clear();
     _sharesDiluted = null;
     context.read<AnalysisProvider>().clearResult();
@@ -255,7 +265,15 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                     const SizedBox(height: 16),
                   ],
 
-                  // 4. Metrics cards with commentary
+                  // 4. Metrics dashboard (all computed metrics)
+                  MetricsDashboard(
+                    metrics: analysisProvider.currentResult!.metrics,
+                    profile: analysisProvider.currentResult!.profile,
+                    criteria: analysisProvider.currentResult!.criteria,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 5. Criteria cards with commentary
                   Text(
                     'Metrics vs Thresholds',
                     style: Theme.of(context).textTheme.titleMedium,
@@ -531,6 +549,20 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
         _buildNumberField(_totalDebtController, 'Total Debt'),
         _buildNumberField(_cashController, 'Cash & Equivalents'),
         _buildNumberField(_ebitdaController, 'EBITDA'),
+        _buildNumberField(_totalEquityController, 'Total Equity'),
+
+        const SizedBox(height: 8),
+        Text(
+          'Growth Data (optional)',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        _buildOptionalNumberField(
+          _earningsGrowthRateController,
+          'Earnings Growth Rate',
+          suffix: '%',
+          helperText: 'Annual EPS growth — needed for PEG ratio',
+        ),
       ],
     );
 
@@ -673,6 +705,37 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
         validator: (value) {
           if (value?.isEmpty == true) return 'Required';
           if (double.tryParse(value!) == null) return 'Invalid number';
+          return null;
+        },
+      ),
+    );
+  }
+
+  Widget _buildOptionalNumberField(
+    TextEditingController controller,
+    String label, {
+    String? suffix,
+    String? helperText,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: '$label (optional)',
+          suffixText: suffix,
+          helperText: helperText,
+        ),
+        keyboardType: const TextInputType.numberWithOptions(
+          decimal: true,
+          signed: true,
+        ),
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*')),
+        ],
+        validator: (value) {
+          if (value == null || value.isEmpty) return null; // optional
+          if (double.tryParse(value) == null) return 'Invalid number';
           return null;
         },
       ),
