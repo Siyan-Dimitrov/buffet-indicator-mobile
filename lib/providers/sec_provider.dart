@@ -36,6 +36,7 @@ class SecProvider extends ChangeNotifier {
   SecFinancialData? get financialData => _financialData;
   bool get isLoading => _isLoading;
   bool get isCacheLoading => _isCacheLoading;
+  int get tickerCount => _cacheService.tickerCount;
   AppException? get error => _error;
   AppException? get stockPriceError => _stockPriceError;
 

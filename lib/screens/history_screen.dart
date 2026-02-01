@@ -2,12 +2,42 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart' show Share;
 
+import '../models/financial_data.dart';
 import '../providers/analysis_provider.dart';
 import '../utils/investor_content.dart';
 import '../utils/theme.dart';
 
-class HistoryScreen extends StatelessWidget {
+class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
+
+  @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  String _searchQuery = '';
+  String _selectedGrade = 'All';
+
+  static const _gradeFilters = ['All', 'A', 'B', 'C', 'D', 'F'];
+
+  List<AnalysisResult> _filterResults(List<AnalysisResult> history) {
+    return history.where((result) {
+      // Grade filter
+      if (_selectedGrade != 'All' && result.grade != _selectedGrade) {
+        return false;
+      }
+      // Search filter
+      if (_searchQuery.isNotEmpty) {
+        final query = _searchQuery.toLowerCase();
+        final matchesName =
+            result.inputs.companyName.toLowerCase().contains(query);
+        final matchesTicker =
+            result.inputs.ticker.toLowerCase().contains(query);
+        if (!matchesName && !matchesTicker) return false;
+      }
+      return true;
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,89 +111,203 @@ class HistoryScreen extends StatelessWidget {
             );
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: provider.history.length,
-            itemBuilder: (context, index) {
-              final result = provider.history[index];
-              return Dismissible(
-                key: Key('${result.inputs.ticker}_${result.analyzedAt}'),
-                direction: DismissDirection.endToStart,
-                background: Container(
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 16),
-                  color: Theme.of(context).colorScheme.error,
-                  child: Icon(
-                    Icons.delete,
-                    color: Theme.of(context).colorScheme.onError,
+          final filtered = _filterResults(provider.history);
+
+          return Column(
+            children: [
+              // Search bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search by name or ticker',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              setState(() => _searchQuery = '');
+                            },
+                          )
+                        : null,
+                    border: const OutlineInputBorder(),
+                    isDense: true,
                   ),
+                  onChanged: (value) {
+                    setState(() => _searchQuery = value);
+                  },
                 ),
-                onDismissed: (_) {
-                  provider.removeFromHistory(index);
-                },
-                child: Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    leading: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: AppTheme.getGradeColor(result.grade),
-                        borderRadius: BorderRadius.circular(8),
+              ),
+
+              // Grade filter chips
+              SizedBox(
+                height: 48,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: _gradeFilters.map((grade) {
+                    final isSelected = _selectedGrade == grade;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        label: Text(grade),
+                        selected: isSelected,
+                        onSelected: (_) {
+                          setState(() => _selectedGrade = grade);
+                        },
+                        backgroundColor: grade != 'All'
+                            ? AppTheme.getGradeColor(grade).withOpacity(0.1)
+                            : null,
+                        selectedColor: grade != 'All'
+                            ? AppTheme.getGradeColor(grade).withOpacity(0.3)
+                            : null,
                       ),
-                      child: Center(
-                        child: Text(
-                          result.grade,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
+                    );
+                  }).toList(),
+                ),
+              ),
+
+              // Results list or empty state
+              Expanded(
+                child: filtered.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.search_off,
+                              size: 48,
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No matching results',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    color:
+                                        Theme.of(context).colorScheme.outline,
+                                  ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ),
-                    title: Text(result.inputs.companyName),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${result.inputs.ticker} - ${result.profile.name}',
-                        ),
-                        Text(
-                          _formatDate(result.analyzedAt),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${result.score}%',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
-                                color: AppTheme.getGradeColor(result.grade),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final result = filtered[index];
+                          final gradeColor =
+                              AppTheme.getGradeColor(result.grade);
+
+                          return Dismissible(
+                            key: Key(
+                                '${result.inputs.ticker}_${result.analyzedAt}'),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 16),
+                              color: Theme.of(context).colorScheme.error,
+                              child: Icon(
+                                Icons.delete,
+                                color:
+                                    Theme.of(context).colorScheme.onError,
                               ),
-                        ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          icon: const Icon(Icons.share, size: 18),
-                          tooltip: 'Share',
-                          onPressed: () {
-                            final text =
-                                InvestorContent.generateShareText(result);
-                            Share.share(text);
-                          },
-                        ),
-                      ],
-                    ),
-                    isThreeLine: true,
-                  ),
-                ),
-              );
-            },
+                            ),
+                            onDismissed: (_) {
+                              // Find original index in full history
+                              final originalIndex =
+                                  provider.history.indexOf(result);
+                              if (originalIndex >= 0) {
+                                provider.removeFromHistory(originalIndex);
+                              }
+                            },
+                            child: Card(
+                              elevation: 0,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerLow,
+                              margin: const EdgeInsets.only(bottom: 12),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    left: BorderSide(
+                                      color: gradeColor,
+                                      width: 4,
+                                    ),
+                                  ),
+                                ),
+                                child: ListTile(
+                                  leading: Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: gradeColor.withOpacity(0.15),
+                                      borderRadius:
+                                          BorderRadius.circular(8),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        result.grade,
+                                        style: TextStyle(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold,
+                                          color: gradeColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  title: Text(result.inputs.companyName),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${result.inputs.ticker} - ${result.profile.name}',
+                                      ),
+                                      Text(
+                                        _formatDate(result.analyzedAt),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall,
+                                      ),
+                                    ],
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '${result.score}%',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
+                                              color: gradeColor,
+                                            ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: const Icon(Icons.share,
+                                            size: 18),
+                                        tooltip: 'Share',
+                                        onPressed: () {
+                                          final text = InvestorContent
+                                              .generateShareText(result);
+                                          Share.share(text);
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                  isThreeLine: true,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
           );
         },
       ),
@@ -171,6 +315,18 @@ class HistoryScreen extends StatelessWidget {
   }
 
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    final diff = today.difference(dateOnly).inDays;
+
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.day}';
   }
 }

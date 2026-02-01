@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../providers/analysis_provider.dart';
 import 'analyze_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';

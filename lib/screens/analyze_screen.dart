@@ -226,86 +226,93 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                 // RESULTS SECTION (only when results exist)
                 // ──────────────────────────────────
                 if (hasResults) ...[
-                  // 1. Verdict banner (hero)
-                  VerdictBanner(result: analysisProvider.currentResult!),
-                  const SizedBox(height: 16),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 400),
+                    child: Column(
+                      key: ValueKey(analysisProvider.currentResult!.analyzedAt),
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 1. Verdict banner (hero)
+                        VerdictBanner(result: analysisProvider.currentResult!),
+                        const SizedBox(height: 16),
 
-                  // 2. Grade card with share button
-                  GradeCard(result: analysisProvider.currentResult!),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: IconButton.filled(
-                      onPressed: () =>
-                          _shareResult(analysisProvider.currentResult!),
-                      icon: const Icon(Icons.share, size: 18),
-                      tooltip: 'Share Result',
-                      style: IconButton.styleFrom(
-                        backgroundColor: Theme.of(context)
-                            .colorScheme
-                            .secondaryContainer,
-                        foregroundColor: Theme.of(context)
-                            .colorScheme
-                            .onSecondaryContainer,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // 3. Comparison table (if available)
-                  if (hasComparison) ...[
-                    ComparisonTable(
-                      results: analysisProvider.comparisonResults!,
-                      onRowTap: (result) {
-                        final provider = context.read<AnalysisProvider>();
-                        provider.selectProfile(result.profile);
-                        _submitAnalysis();
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // 4. Metrics dashboard (all computed metrics)
-                  MetricsDashboard(
-                    metrics: analysisProvider.currentResult!.metrics,
-                    profile: analysisProvider.currentResult!.profile,
-                    criteria: analysisProvider.currentResult!.criteria,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 5. Criteria cards with commentary
-                  Text(
-                    'Metrics vs Thresholds',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  ...analysisProvider.currentResult!.criteria.map(
-                    (criterion) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: MetricCard(
-                        criterion: criterion,
-                        commentary: InvestorContent.getMetricCommentary(
-                          analysisProvider.currentResult!.profile,
-                          criterion.name,
+                        // 2. Grade card with share button
+                        GradeCard(result: analysisProvider.currentResult!),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton.tonalIcon(
+                            onPressed: () =>
+                                _shareResult(analysisProvider.currentResult!),
+                            icon: const Icon(Icons.share, size: 18),
+                            label: const Text('Share'),
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 8),
+
+                        // 3. Comparison table (if available)
+                        if (hasComparison) ...[
+                          ComparisonTable(
+                            results: analysisProvider.comparisonResults!,
+                            onRowTap: (result) {
+                              final provider =
+                                  context.read<AnalysisProvider>();
+                              provider.selectProfile(result.profile);
+                              _submitAnalysis();
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+
+                        // 4. Metrics dashboard (all computed metrics)
+                        MetricsDashboard(
+                          metrics: analysisProvider.currentResult!.metrics,
+                          profile: analysisProvider.currentResult!.profile,
+                          criteria: analysisProvider.currentResult!.criteria,
+                        ),
+                        const SizedBox(height: 16),
+
+                        // 5. Criteria cards with commentary
+                        Text(
+                          'Metrics vs Thresholds',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        ...analysisProvider.currentResult!.criteria.map(
+                          (criterion) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: MetricCard(
+                              criterion: criterion,
+                              commentary:
+                                  InvestorContent.getMetricCommentary(
+                                analysisProvider.currentResult!.profile,
+                                criterion.name,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Prescriptions
+                        if (analysisProvider
+                            .currentResult!.prescriptions.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            'Prescriptions',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          PrescriptionCard(
+                            prescriptions:
+                                analysisProvider.currentResult!.prescriptions,
+                            failingCriteria: analysisProvider
+                                .currentResult!.criteria
+                                .where((c) => !c.passed)
+                                .toList(),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-
-                  // Prescriptions
-                  if (analysisProvider
-                      .currentResult!.prescriptions.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      'Prescriptions',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    PrescriptionCard(
-                      prescriptions:
-                          analysisProvider.currentResult!.prescriptions,
-                    ),
-                  ],
 
                   // 5. Divider between results and form
                   const SizedBox(height: 24),
@@ -319,6 +326,8 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
 
                 // 6. Profile indicator
                 Card(
+                  elevation: 0,
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Row(
@@ -484,7 +493,13 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     final fields = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Company info
+        // Company Info section header
+        Text(
+          'Company Info',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const Divider(),
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
@@ -532,36 +547,89 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
             FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
 
-        // Financial inputs
+        // Financial Data section header
         Text(
-          'Financial Data (in millions \$)',
+          'Financial Data',
           style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const Divider(),
+        const SizedBox(height: 4),
+        Text(
+          'All values in millions (\$)',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
         ),
         const SizedBox(height: 8),
 
-        _buildNumberField(_revenueController, 'Revenue'),
-        _buildNumberField(_operatingIncomeController, 'Operating Income'),
-        _buildNumberField(_netIncomeController, 'Net Income'),
-        _buildNumberField(_fcfController, 'Free Cash Flow'),
-        _buildNumberField(_marketCapController, 'Market Cap'),
-        _buildNumberField(_totalDebtController, 'Total Debt'),
-        _buildNumberField(_cashController, 'Cash & Equivalents'),
-        _buildNumberField(_ebitdaController, 'EBITDA'),
-        _buildNumberField(_totalEquityController, 'Total Equity'),
+        _buildNumberField(
+          _revenueController,
+          'Revenue',
+          customValidator: (v) => v <= 0 ? 'Revenue must be positive' : null,
+        ),
+        _buildNumberField(
+          _operatingIncomeController,
+          'Operating Income',
+          allowNegativeWarning: true,
+        ),
+        _buildNumberField(
+          _netIncomeController,
+          'Net Income',
+          allowNegativeWarning: true,
+        ),
+        _buildNumberField(
+          _fcfController,
+          'Free Cash Flow',
+          allowNegativeWarning: true,
+        ),
+        _buildNumberField(
+          _marketCapController,
+          'Market Cap',
+          customValidator: (v) =>
+              v <= 0 ? 'Market cap must be positive' : null,
+        ),
+        _buildNumberField(
+          _totalDebtController,
+          'Total Debt',
+          customValidator: (v) =>
+              v < 0 ? 'Debt cannot be negative' : null,
+        ),
+        _buildNumberField(
+          _cashController,
+          'Cash & Equivalents',
+          customValidator: (v) =>
+              v < 0 ? 'Cash cannot be negative' : null,
+        ),
+        _buildNumberField(
+          _ebitdaController,
+          'EBITDA',
+          customValidator: (v) =>
+              v <= 0 ? 'EBITDA must be positive' : null,
+        ),
+        _buildNumberField(
+          _totalEquityController,
+          'Total Equity',
+          customValidator: (v) =>
+              v <= 0 ? 'Equity must be positive' : null,
+        ),
 
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
+        // Optional section header
         Text(
-          'Growth Data (optional)',
+          'Optional',
           style: Theme.of(context).textTheme.titleSmall,
         ),
+        const Divider(),
         const SizedBox(height: 8),
         _buildOptionalNumberField(
           _earningsGrowthRateController,
           'Earnings Growth Rate',
           suffix: '%',
           helperText: 'Annual EPS growth — needed for PEG ratio',
+          customValidator: (v) =>
+              v <= 0 ? 'Growth rate must be positive' : null,
         ),
       ],
     );
@@ -615,6 +683,8 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
         child: Column(
           children: [
             Card(
+              elevation: 0,
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
               child: ExpansionTile(
                 title: const Text('Financial Inputs'),
                 subtitle: const Text('Tap to edit inputs'),
@@ -686,7 +756,12 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     );
   }
 
-  Widget _buildNumberField(TextEditingController controller, String label) {
+  Widget _buildNumberField(
+    TextEditingController controller,
+    String label, {
+    String? Function(double value)? customValidator,
+    bool allowNegativeWarning = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
@@ -694,6 +769,9 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
         decoration: InputDecoration(
           labelText: label,
           suffixText: 'M',
+          suffixIcon: allowNegativeWarning
+              ? _buildNegativeWarningIcon(controller)
+              : null,
         ),
         keyboardType: const TextInputType.numberWithOptions(
           decimal: true,
@@ -704,10 +782,32 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
         ],
         validator: (value) {
           if (value?.isEmpty == true) return 'Required';
-          if (double.tryParse(value!) == null) return 'Invalid number';
+          final parsed = double.tryParse(value!);
+          if (parsed == null) return 'Invalid number';
+          if (customValidator != null) return customValidator(parsed);
           return null;
         },
       ),
+    );
+  }
+
+  Widget? _buildNegativeWarningIcon(TextEditingController controller) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        final parsed = double.tryParse(value.text);
+        if (parsed != null && parsed < 0) {
+          return Tooltip(
+            message: 'Negative value — will impact grade',
+            child: Icon(
+              Icons.warning_amber_rounded,
+              color: Theme.of(context).colorScheme.error,
+              size: 20,
+            ),
+          );
+        }
+        return const SizedBox.shrink();
+      },
     );
   }
 
@@ -716,6 +816,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     String label, {
     String? suffix,
     String? helperText,
+    String? Function(double value)? customValidator,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -735,7 +836,9 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
         ],
         validator: (value) {
           if (value == null || value.isEmpty) return null; // optional
-          if (double.tryParse(value) == null) return 'Invalid number';
+          final parsed = double.tryParse(value);
+          if (parsed == null) return 'Invalid number';
+          if (customValidator != null) return customValidator(parsed);
           return null;
         },
       ),

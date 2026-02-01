@@ -18,6 +18,8 @@ class GradeCard extends StatelessWidget {
     final totalCount = result.criteria.length;
 
     return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
@@ -35,32 +37,43 @@ class GradeCard extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             child: Row(
               children: [
-                // Grade circle
-                Container(
-                  width: 90,
-                  height: 90,
-                  decoration: BoxDecoration(
-                    color: gradeColor.withOpacity(0.15),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: gradeColor,
-                      width: 3,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: gradeColor.withOpacity(0.25),
-                        blurRadius: 8,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      result.grade,
-                      style: TextStyle(
-                        fontSize: 44,
-                        fontWeight: FontWeight.bold,
+                // Animated grade circle
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.elasticOut,
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: child,
+                    );
+                  },
+                  child: Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      color: gradeColor.withOpacity(0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(
                         color: gradeColor,
+                        width: 3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: gradeColor.withOpacity(0.25),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        result.grade,
+                        style: TextStyle(
+                          fontSize: 44,
+                          fontWeight: FontWeight.bold,
+                          color: gradeColor,
+                        ),
                       ),
                     ),
                   ),

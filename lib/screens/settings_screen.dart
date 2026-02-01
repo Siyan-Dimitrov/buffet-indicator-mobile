@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/financial_data.dart';
 import '../providers/analysis_provider.dart';
+import 'onboarding_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -15,8 +17,10 @@ class SettingsScreen extends StatelessWidget {
       ),
       body: Consumer<AnalysisProvider>(
         builder: (context, provider, child) {
+          final profile = provider.selectedProfile;
+
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             children: [
               // Investor Profile Section
               Text(
@@ -25,20 +29,21 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Card(
+                elevation: 0,
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
                 child: Column(
-                  children: InvestorProfile.all.map((profile) {
-                    final isSelected =
-                        provider.selectedProfile.name == profile.name;
+                  children: InvestorProfile.all.map((p) {
+                    final isSelected = provider.selectedProfile.name == p.name;
                     return RadioListTile<InvestorProfile>(
-                      value: profile,
+                      value: p,
                       groupValue: provider.selectedProfile,
                       onChanged: (value) {
                         if (value != null) {
                           provider.selectProfile(value);
                         }
                       },
-                      title: Text(profile.name),
-                      subtitle: Text(profile.description),
+                      title: Text(p.name),
+                      subtitle: Text(p.description),
                       secondary: isSelected
                           ? Icon(
                               Icons.check_circle,
@@ -57,40 +62,154 @@ class SettingsScreen extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
+
+              // Profitability & Cash Flow
               Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      _buildThresholdRow(
-                        context,
-                        'Min FCF Yield',
-                        '${provider.selectedProfile.minFcfYield}%',
-                        Icons.attach_money,
+                elevation: 0,
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                child: ExpansionTile(
+                  title: const Text('Profitability & Cash Flow'),
+                  leading: const Icon(Icons.trending_up),
+                  initiallyExpanded: true,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Column(
+                        children: [
+                          _buildThresholdRow(
+                            context,
+                            'FCF Yield',
+                            '${profile.minFcfYield}%',
+                            Icons.arrow_upward,
+                            isMin: true,
+                          ),
+                          const Divider(),
+                          _buildThresholdRow(
+                            context,
+                            'Operating Margin',
+                            '${profile.minOperatingMargin}%',
+                            Icons.arrow_upward,
+                            isMin: true,
+                          ),
+                          const Divider(),
+                          _buildThresholdRow(
+                            context,
+                            'Net Margin',
+                            '${profile.minNetMargin}%',
+                            Icons.arrow_upward,
+                            isMin: true,
+                          ),
+                          const Divider(),
+                          _buildThresholdRow(
+                            context,
+                            'Leverage',
+                            '${profile.maxLeverage}x',
+                            Icons.arrow_downward,
+                            isMin: false,
+                          ),
+                          if (profile.minFcfToNetIncome != null) ...[
+                            const Divider(),
+                            _buildThresholdRow(
+                              context,
+                              'FCF/Net Income',
+                              '${profile.minFcfToNetIncome}%',
+                              Icons.arrow_upward,
+                              isMin: true,
+                            ),
+                          ],
+                        ],
                       ),
-                      const Divider(),
-                      _buildThresholdRow(
-                        context,
-                        'Min Operating Margin',
-                        '${provider.selectedProfile.minOperatingMargin}%',
-                        Icons.trending_up,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Valuation & Returns
+              Card(
+                elevation: 0,
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                child: ExpansionTile(
+                  title: const Text('Valuation & Returns'),
+                  leading: const Icon(Icons.assessment),
+                  initiallyExpanded: false,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Column(
+                        children: [
+                          if (profile.maxPeRatio != null)
+                            _buildThresholdRow(
+                              context,
+                              'P/E Ratio',
+                              '${profile.maxPeRatio}x',
+                              Icons.arrow_downward,
+                              isMin: false,
+                            ),
+                          if (profile.maxEvToEbitda != null) ...[
+                            const Divider(),
+                            _buildThresholdRow(
+                              context,
+                              'EV/EBITDA',
+                              '${profile.maxEvToEbitda}x',
+                              Icons.arrow_downward,
+                              isMin: false,
+                            ),
+                          ],
+                          if (profile.maxPToFcf != null) ...[
+                            const Divider(),
+                            _buildThresholdRow(
+                              context,
+                              'P/FCF',
+                              '${profile.maxPToFcf}x',
+                              Icons.arrow_downward,
+                              isMin: false,
+                            ),
+                          ],
+                          if (profile.maxPbRatio != null) ...[
+                            const Divider(),
+                            _buildThresholdRow(
+                              context,
+                              'P/B Ratio',
+                              '${profile.maxPbRatio}x',
+                              Icons.arrow_downward,
+                              isMin: false,
+                            ),
+                          ],
+                          if (profile.minRoic != null) ...[
+                            const Divider(),
+                            _buildThresholdRow(
+                              context,
+                              'ROIC',
+                              '${profile.minRoic}%',
+                              Icons.arrow_upward,
+                              isMin: true,
+                            ),
+                          ],
+                          if (profile.minRoe != null) ...[
+                            const Divider(),
+                            _buildThresholdRow(
+                              context,
+                              'ROE',
+                              '${profile.minRoe}%',
+                              Icons.arrow_upward,
+                              isMin: true,
+                            ),
+                          ],
+                          if (profile.maxPegRatio != null) ...[
+                            const Divider(),
+                            _buildThresholdRow(
+                              context,
+                              'PEG Ratio',
+                              '${profile.maxPegRatio}x',
+                              Icons.arrow_downward,
+                              isMin: false,
+                            ),
+                          ],
+                        ],
                       ),
-                      const Divider(),
-                      _buildThresholdRow(
-                        context,
-                        'Min Net Margin',
-                        '${provider.selectedProfile.minNetMargin}%',
-                        Icons.account_balance,
-                      ),
-                      const Divider(),
-                      _buildThresholdRow(
-                        context,
-                        'Max Leverage',
-                        '${provider.selectedProfile.maxLeverage}x',
-                        Icons.balance,
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 24),
@@ -102,21 +221,31 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Card(
+                elevation: 0,
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
                 child: Column(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.info_outline),
-                      title: const Text('Version'),
-                      trailing: const Text('1.0.0'),
+                      leading: const Icon(Icons.school_outlined),
+                      title: const Text('Show Tutorial'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setBool('hasSeenOnboarding', false);
+                        if (context.mounted) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const OnboardingScreen(),
+                            ),
+                          );
+                        }
+                      },
                     ),
                     const Divider(height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.code),
-                      title: const Text('Source Code'),
-                      trailing: const Icon(Icons.open_in_new),
-                      onTap: () {
-                        // TODO: Open GitHub repo
-                      },
+                    const ListTile(
+                      leading: Icon(Icons.info_outline),
+                      title: Text('Version'),
+                      trailing: Text('1.0.0'),
                     ),
                     const Divider(height: 1),
                     ListTile(
@@ -145,18 +274,28 @@ class SettingsScreen extends StatelessWidget {
     BuildContext context,
     String label,
     String value,
-    IconData icon,
-  ) {
+    IconData directionIcon, {
+    required bool isMin,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
           Icon(
-            icon,
-            size: 20,
-            color: Theme.of(context).colorScheme.primary,
+            directionIcon,
+            size: 16,
+            color: isMin
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.tertiary,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
+          Text(
+            isMin ? 'Min' : 'Max',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(label),
           ),
