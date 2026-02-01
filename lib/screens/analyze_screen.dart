@@ -86,14 +86,29 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
   void _autoPopulate(SecFinancialData data) {
     _companyNameController.text = data.companyName;
     _tickerController.text = data.ticker;
-    _revenueController.text = _formatForForm(data.revenue);
-    _operatingIncomeController.text = _formatForForm(data.operatingIncome);
-    _netIncomeController.text = _formatForForm(data.netIncome);
-    _fcfController.text = _formatForForm(data.freeCashFlow);
-    _totalDebtController.text = _formatForForm(data.totalDebt);
-    _cashController.text = _formatForForm(data.cashAndEquivalents);
-    _ebitdaController.text = _formatForForm(data.calculatedEbitda);
-    _totalEquityController.text = _formatForForm(data.totalEquity);
+
+    // Track which fields couldn't be pulled from SEC filings
+    final missing = <String>[];
+
+    void populateField(
+      TextEditingController controller,
+      double? value,
+      String fieldName,
+    ) {
+      controller.text = _formatForForm(value);
+      if (value == null) missing.add(fieldName);
+    }
+
+    populateField(_revenueController, data.revenue, 'Revenue');
+    populateField(
+        _operatingIncomeController, data.operatingIncome, 'Operating Income');
+    populateField(_netIncomeController, data.netIncome, 'Net Income');
+    populateField(_fcfController, data.freeCashFlow, 'Free Cash Flow');
+    populateField(_totalDebtController, data.totalDebt, 'Total Debt');
+    populateField(
+        _cashController, data.cashAndEquivalents, 'Cash & Equivalents');
+    populateField(_ebitdaController, data.calculatedEbitda, 'EBITDA');
+    populateField(_totalEquityController, data.totalEquity, 'Total Equity');
 
     // Auto-fill earnings growth rate if calculable from SEC data
     if (data.earningsGrowthRate != null) {
@@ -118,13 +133,20 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
       }
     }
 
-    // Auto-analyze after populating
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _submitAnalysis();
+    setState(() {
+      _secDataWarnings = missing;
     });
+
+    // Only auto-analyze if no required fields are missing
+    if (missing.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _submitAnalysis();
+      });
+    }
   }
 
   List<String> _optionalWarnings = [];
+  List<String> _secDataWarnings = [];
 
   FinancialInputs? _buildInputs() {
     if (!_formKey.currentState!.validate()) return null;
@@ -202,6 +224,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     _stockPriceController.clear();
     _sharesDiluted = null;
     _optionalWarnings = [];
+    _secDataWarnings = [];
     context.read<AnalysisProvider>().clearResult();
     context.read<SecProvider>().clearSelection();
   }
@@ -449,6 +472,64 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                     onPressed: () =>
                         _autoPopulate(secProvider.financialData!),
                     child: const Text('Load & Analyze'),
+                  ),
+                ],
+
+                if (_secDataWarnings.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Card(
+                    elevation: 0,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .errorContainer
+                        .withOpacity(0.6),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 20,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onErrorContainer,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Missing SEC data — fill in manually:',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onErrorContainer,
+                                      ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _secDataWarnings.join(', '),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onErrorContainer,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
 
