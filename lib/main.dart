@@ -73,11 +73,8 @@ class _OnboardingWrapperState extends State<_OnboardingWrapper> {
   @override
   Widget build(BuildContext context) {
     if (_showingOnboarding) {
-      return Navigator(
-        onGenerateRoute: (_) => MaterialPageRoute(
-          builder: (_) => const OnboardingScreen(),
-        ),
-        onDidRemovePage: (_) {
+      return OnboardingScreen(
+        onComplete: () {
           setState(() => _showingOnboarding = false);
         },
       );
