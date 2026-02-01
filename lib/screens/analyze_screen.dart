@@ -124,9 +124,33 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     });
   }
 
+  List<String> _optionalWarnings = [];
+
   FinancialInputs? _buildInputs() {
     if (!_formKey.currentState!.validate()) return null;
+    final warnings = <String>[];
+
+    // Parse optional earnings growth rate — never blocks submission
+    double? earningsGrowthRate;
     final growthText = _earningsGrowthRateController.text.trim();
+    if (growthText.isNotEmpty) {
+      final parsed = double.tryParse(growthText);
+      if (parsed == null || parsed <= 0) {
+        warnings.add(
+          'Earnings Growth Rate ignored — must be a positive number. '
+          'PEG ratio will not be calculated.',
+        );
+      } else {
+        earningsGrowthRate = parsed;
+      }
+    } else {
+      warnings.add(
+        'No Earnings Growth Rate provided — PEG ratio will not be calculated.',
+      );
+    }
+
+    setState(() => _optionalWarnings = warnings);
+
     return FinancialInputs(
       companyName: _companyNameController.text,
       ticker: _tickerController.text.toUpperCase(),
@@ -139,8 +163,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
       cashAndEquivalents: double.parse(_cashController.text),
       ebitda: double.parse(_ebitdaController.text),
       totalEquity: double.parse(_totalEquityController.text),
-      earningsGrowthRate:
-          growthText.isNotEmpty ? double.tryParse(growthText) : null,
+      earningsGrowthRate: earningsGrowthRate,
     );
   }
 
@@ -178,6 +201,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     _earningsGrowthRateController.clear();
     _stockPriceController.clear();
     _sharesDiluted = null;
+    _optionalWarnings = [];
     context.read<AnalysisProvider>().clearResult();
     context.read<SecProvider>().clearSelection();
   }
@@ -308,6 +332,57 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                                 .currentResult!.criteria
                                 .where((c) => !c.passed)
                                 .toList(),
+                          ),
+                        ],
+
+                        // Optional data warnings
+                        if (_optionalWarnings.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          Card(
+                            elevation: 0,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .secondaryContainer
+                                .withOpacity(0.5),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.info_outline,
+                                    size: 20,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSecondaryContainer,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: _optionalWarnings
+                                          .map((w) => Padding(
+                                                padding: const EdgeInsets.only(
+                                                    bottom: 4),
+                                                child: Text(
+                                                  w,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color: Theme.of(context)
+                                                            .colorScheme
+                                                            .onSecondaryContainer,
+                                                      ),
+                                                ),
+                                              ))
+                                          .toList(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       ],
@@ -628,8 +703,6 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
           'Earnings Growth Rate',
           suffix: '%',
           helperText: 'Annual EPS growth — needed for PEG ratio',
-          customValidator: (v) =>
-              v <= 0 ? 'Growth rate must be positive' : null,
         ),
       ],
     );
