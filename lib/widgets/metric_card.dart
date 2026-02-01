@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../models/financial_data.dart';
 import '../utils/theme.dart';
+import 'metrics_dashboard.dart' show showMetricInfoSheet;
 
 class MetricCard extends StatelessWidget {
   final CriterionResult criterion;
   final String? commentary;
+  final InvestorProfile? profile;
 
   const MetricCard({
     super.key,
     required this.criterion,
     this.commentary,
+    this.profile,
   });
 
   @override
@@ -57,6 +60,22 @@ class MetricCard extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                   ),
+                  if (profile != null)
+                    GestureDetector(
+                      onTap: () => showMetricInfoSheet(
+                        context,
+                        criterion.name,
+                        profile!,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Icon(
+                          Icons.info_outline,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ),
+                    ),
                   Icon(
                     criterion.passed ? Icons.check_circle : Icons.cancel,
                     color: statusColor,

@@ -312,6 +312,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                                 analysisProvider.currentResult!.profile,
                                 criterion.name,
                               ),
+                              profile: analysisProvider.currentResult!.profile,
                             ),
                           ),
                         ),

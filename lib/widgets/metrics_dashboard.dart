@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/financial_data.dart';
+import '../utils/investor_content.dart';
 
 class MetricsDashboard extends StatelessWidget {
   final DerivedMetrics metrics;
@@ -25,7 +26,7 @@ class MetricsDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = _buildMetricItems();
+    final items = _buildMetricItems(context);
 
     return Card(
       child: Padding(
@@ -68,97 +69,140 @@ class MetricsDashboard extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildMetricItems() {
+  List<Widget> _buildMetricItems(BuildContext context) {
+    Widget chip(String label, String metricName, String value) {
+      return _MetricChip(
+        label: label,
+        value: value,
+        passed: _passed(metricName),
+        onInfoTap: () => showMetricInfoSheet(context, metricName, profile),
+      );
+    }
+
     return [
-      _MetricChip(
-        label: 'FCF Yield',
-        value: '${metrics.fcfYield.toStringAsFixed(1)}%',
-        passed: _passed('FCF Yield'),
-      ),
-      _MetricChip(
-        label: 'Op Margin',
-        value: '${metrics.operatingMargin.toStringAsFixed(1)}%',
-        passed: _passed('Operating Margin'),
-      ),
-      _MetricChip(
-        label: 'Net Margin',
-        value: '${metrics.netMargin.toStringAsFixed(1)}%',
-        passed: _passed('Net Margin'),
-      ),
-      _MetricChip(
-        label: 'Leverage',
-        value: '${metrics.leverage.toStringAsFixed(2)}x',
-        passed: _passed('Leverage'),
-      ),
-      _MetricChip(
-        label: 'P/E',
-        value: metrics.peRatio != null
-            ? '${metrics.peRatio!.toStringAsFixed(1)}x'
-            : 'N/A',
-        passed: _passed('P/E Ratio'),
-      ),
-      _MetricChip(
-        label: 'EV/EBITDA',
-        value: metrics.evToEbitda != null
-            ? '${metrics.evToEbitda!.toStringAsFixed(1)}x'
-            : 'N/A',
-        passed: _passed('EV/EBITDA'),
-      ),
-      _MetricChip(
-        label: 'P/FCF',
-        value: metrics.pToFcf != null
-            ? '${metrics.pToFcf!.toStringAsFixed(1)}x'
-            : 'N/A',
-        passed: _passed('P/FCF'),
-      ),
-      _MetricChip(
-        label: 'P/B',
-        value: metrics.pbRatio != null
-            ? '${metrics.pbRatio!.toStringAsFixed(2)}x'
-            : 'N/A',
-        passed: _passed('P/B Ratio'),
-      ),
-      _MetricChip(
-        label: 'ROIC',
-        value: metrics.roic != null
-            ? '${metrics.roic!.toStringAsFixed(1)}%'
-            : 'N/A',
-        passed: _passed('ROIC'),
-      ),
-      _MetricChip(
-        label: 'ROE',
-        value: metrics.roe != null
-            ? '${metrics.roe!.toStringAsFixed(1)}%'
-            : 'N/A',
-        passed: _passed('ROE'),
-      ),
-      _MetricChip(
-        label: 'FCF/NI',
-        value: metrics.fcfToNetIncome != null
-            ? '${metrics.fcfToNetIncome!.toStringAsFixed(0)}%'
-            : 'N/A',
-        passed: _passed('FCF/Net Income'),
-      ),
-      _MetricChip(
-        label: 'PEG',
-        value: metrics.pegRatio != null
-            ? '${metrics.pegRatio!.toStringAsFixed(2)}x'
-            : 'N/A',
-        passed: _passed('PEG Ratio'),
-      ),
+      chip('FCF Yield', 'FCF Yield',
+          '${metrics.fcfYield.toStringAsFixed(1)}%'),
+      chip('Op Margin', 'Operating Margin',
+          '${metrics.operatingMargin.toStringAsFixed(1)}%'),
+      chip('Net Margin', 'Net Margin',
+          '${metrics.netMargin.toStringAsFixed(1)}%'),
+      chip('Leverage', 'Leverage',
+          '${metrics.leverage.toStringAsFixed(2)}x'),
+      chip('P/E', 'P/E Ratio',
+          metrics.peRatio != null
+              ? '${metrics.peRatio!.toStringAsFixed(1)}x'
+              : 'N/A'),
+      chip('EV/EBITDA', 'EV/EBITDA',
+          metrics.evToEbitda != null
+              ? '${metrics.evToEbitda!.toStringAsFixed(1)}x'
+              : 'N/A'),
+      chip('P/FCF', 'P/FCF',
+          metrics.pToFcf != null
+              ? '${metrics.pToFcf!.toStringAsFixed(1)}x'
+              : 'N/A'),
+      chip('P/B', 'P/B Ratio',
+          metrics.pbRatio != null
+              ? '${metrics.pbRatio!.toStringAsFixed(2)}x'
+              : 'N/A'),
+      chip('ROIC', 'ROIC',
+          metrics.roic != null
+              ? '${metrics.roic!.toStringAsFixed(1)}%'
+              : 'N/A'),
+      chip('ROE', 'ROE',
+          metrics.roe != null
+              ? '${metrics.roe!.toStringAsFixed(1)}%'
+              : 'N/A'),
+      chip('FCF/NI', 'FCF/Net Income',
+          metrics.fcfToNetIncome != null
+              ? '${metrics.fcfToNetIncome!.toStringAsFixed(0)}%'
+              : 'N/A'),
+      chip('PEG', 'PEG Ratio',
+          metrics.pegRatio != null
+              ? '${metrics.pegRatio!.toStringAsFixed(2)}x'
+              : 'N/A'),
     ];
   }
+}
+
+/// Shows a bottom sheet with the metric's general description and
+/// investor-specific commentary.
+void showMetricInfoSheet(
+  BuildContext context,
+  String metricName,
+  InvestorProfile profile,
+) {
+  final description = InvestorContent.metricDescriptions[metricName];
+  final commentary =
+      InvestorContent.getMetricCommentary(profile, metricName);
+
+  showModalBottomSheet(
+    context: context,
+    showDragHandle: true,
+    builder: (context) => Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            metricName,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          if (description != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              description,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+          if (commentary != null) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(
+                  Icons.person_outline,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  profile.name,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              commentary,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontStyle: FontStyle.italic,
+                    color:
+                        Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
 }
 
 class _MetricChip extends StatelessWidget {
   final String label;
   final String value;
   final bool? passed; // null = not evaluated (data unavailable)
+  final VoidCallback? onInfoTap;
 
   const _MetricChip({
     required this.label,
     required this.value,
     this.passed,
+    this.onInfoTap,
   });
 
   @override
@@ -188,30 +232,44 @@ class _MetricChip extends StatelessWidget {
       labelColor = scheme.outline;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: valueColor,
+    return GestureDetector(
+      onTap: onInfoTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: valueColor,
+                      ),
                 ),
-          ),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: labelColor,
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: labelColor,
+                      ),
                 ),
-          ),
-        ],
+              ],
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.info_outline,
+              size: 14,
+              color: labelColor,
+            ),
+          ],
+        ),
       ),
     );
   }

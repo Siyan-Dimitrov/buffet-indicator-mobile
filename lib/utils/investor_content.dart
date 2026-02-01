@@ -85,6 +85,46 @@ class InvestorContent {
     return verdicts[name] ?? '$name would likely pass on $company.';
   }
 
+  /// General metric descriptions — what each metric is and why it matters
+  static const Map<String, String> metricDescriptions = {
+    'FCF Yield':
+        'Free Cash Flow Yield measures the cash a company generates relative to its market cap. '
+        'A higher yield means you\'re paying less for each dollar of real cash the business produces.',
+    'Operating Margin':
+        'Operating Margin is the percentage of revenue left after covering operating expenses. '
+        'A wide margin signals competitive advantage and efficient operations.',
+    'Net Margin':
+        'Net Margin is the percentage of revenue that becomes profit after all expenses, taxes, and interest. '
+        'It reflects overall profitability and pricing power.',
+    'Leverage':
+        'Leverage (Net Debt / EBITDA) measures how many years of earnings it would take to pay off debt. '
+        'Lower leverage means less financial risk and more flexibility during downturns.',
+    'P/E Ratio':
+        'Price-to-Earnings Ratio measures how much investors pay per dollar of earnings. '
+        'A lower P/E can indicate undervaluation, while a very high P/E may signal overpricing.',
+    'EV/EBITDA':
+        'Enterprise Value to EBITDA compares the total value of a business (including debt) to its operating earnings. '
+        'It\'s often more accurate than P/E for comparing companies with different capital structures.',
+    'P/FCF':
+        'Price-to-Free-Cash-Flow measures the price you pay per dollar of actual cash generated. '
+        'Unlike P/E, it focuses on real cash rather than accounting earnings, making it harder to manipulate.',
+    'P/B Ratio':
+        'Price-to-Book Ratio compares a company\'s market price to its net asset value. '
+        'A low P/B can indicate undervaluation or provide a floor on downside risk.',
+    'ROIC':
+        'Return on Invested Capital measures how efficiently a company turns capital into profits. '
+        'A high ROIC indicates strong competitive advantages and smart capital allocation.',
+    'ROE':
+        'Return on Equity measures how much profit a company generates for each dollar of shareholder equity. '
+        'It shows how well management creates value for shareholders.',
+    'FCF/Net Income':
+        'FCF-to-Net-Income ratio measures earnings quality — what percentage of reported profits is backed by real cash. '
+        'A ratio above 80% suggests reliable, high-quality earnings.',
+    'PEG Ratio':
+        'The PEG Ratio divides P/E by the earnings growth rate, adjusting valuation for growth. '
+        'A PEG below 1.0 suggests you\'re getting growth at a bargain price.',
+  };
+
   /// Investor-specific commentary per metric
   static String? getMetricCommentary(
       InvestorProfile profile, String metricName) {
