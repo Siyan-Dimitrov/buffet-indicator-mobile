@@ -4,7 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/financial_data.dart';
 import '../providers/analysis_provider.dart';
+import '../providers/premium_provider.dart';
 import 'onboarding_screen.dart';
+import 'premium_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -15,13 +17,62 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Settings'),
       ),
-      body: Consumer<AnalysisProvider>(
-        builder: (context, provider, child) {
+      body: Consumer2<AnalysisProvider, PremiumProvider>(
+        builder: (context, provider, premium, child) {
           final profile = provider.selectedProfile;
 
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             children: [
+              // Premium Section
+              Text(
+                'Premium',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Card(
+                elevation: 0,
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: Icon(
+                        premium.isPremium
+                            ? Icons.verified
+                            : Icons.workspace_premium,
+                        color: premium.isPremium
+                            ? Colors.green
+                            : Theme.of(context).colorScheme.primary,
+                      ),
+                      title: Text(premium.isPremium
+                          ? 'Premium Active'
+                          : 'Free Plan'),
+                      subtitle: Text(premium.isPremium
+                          ? 'All features unlocked'
+                          : 'Upgrade to unlock all profiles, ticker lookup & more'),
+                      trailing: premium.isPremium
+                          ? null
+                          : FilledButton(
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) => const PremiumScreen()),
+                              ),
+                              child: const Text('Upgrade'),
+                            ),
+                    ),
+                    if (!premium.isPremium) ...[
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.restore),
+                        title: const Text('Restore Purchases'),
+                        onTap: () => premium.restorePurchases(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
               // Investor Profile Section
               Text(
                 'Investor Profile',
@@ -34,17 +85,37 @@ class SettingsScreen extends StatelessWidget {
                 child: Column(
                   children: InvestorProfile.all.map((p) {
                     final isSelected = provider.selectedProfile.name == p.name;
+                    final isLocked = !premium.canUseProfile(p.name);
                     return RadioListTile<InvestorProfile>(
                       value: p,
                       groupValue: provider.selectedProfile,
-                      onChanged: (value) {
-                        if (value != null) {
-                          provider.selectProfile(value);
-                        }
-                      },
-                      title: Text(p.name),
+                      onChanged: isLocked
+                          ? (_) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) => const PremiumScreen()),
+                              );
+                            }
+                          : (value) {
+                              if (value != null) {
+                                provider.selectProfile(value);
+                              }
+                            },
+                      title: Row(
+                        children: [
+                          Expanded(child: Text(p.name)),
+                          if (isLocked)
+                            Icon(
+                              Icons.lock_outline,
+                              size: 16,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                        ],
+                      ),
                       subtitle: Text(p.description),
-                      secondary: isSelected
+                      secondary: isSelected && !isLocked
                           ? Icon(
                               Icons.check_circle,
                               color: Theme.of(context).colorScheme.primary,

@@ -4,6 +4,8 @@ import 'package:share_plus/share_plus.dart' show Share;
 
 import '../models/financial_data.dart';
 import '../providers/analysis_provider.dart';
+import '../providers/premium_provider.dart';
+import '../screens/premium_screen.dart';
 import '../utils/investor_content.dart';
 import '../utils/theme.dart';
 
@@ -111,7 +113,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
             );
           }
 
-          final filtered = _filterResults(provider.history);
+          final premium = context.watch<PremiumProvider>();
+          final allFiltered = _filterResults(provider.history);
+          final historyLimit = premium.historyLimit;
+          final isCapped =
+              historyLimit > 0 && allFiltered.length > historyLimit;
+          final filtered =
+              isCapped ? allFiltered.sublist(0, historyLimit) : allFiltered;
 
           return Column(
             children: [
@@ -195,8 +203,35 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.all(16),
-                        itemCount: filtered.length,
+                        itemCount: filtered.length + (isCapped ? 1 : 0),
                         itemBuilder: (context, index) {
+                          // Upgrade banner at the end
+                          if (isCapped && index == filtered.length) {
+                            return Card(
+                              elevation: 0,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primaryContainer,
+                              margin: const EdgeInsets.only(bottom: 12),
+                              child: ListTile(
+                                leading: const Icon(Icons.lock_outline),
+                                title: const Text('Unlock Full History'),
+                                subtitle: Text(
+                                  '${allFiltered.length - historyLimit} more entries hidden',
+                                ),
+                                trailing: FilledButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const PremiumScreen()),
+                                  ),
+                                  child: const Text('Upgrade'),
+                                ),
+                              ),
+                            );
+                          }
+
                           final result = filtered[index];
                           final gradeColor =
                               AppTheme.getGradeColor(result.grade);

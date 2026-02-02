@@ -4,9 +4,11 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'providers/analysis_provider.dart';
+import 'providers/premium_provider.dart';
 import 'providers/sec_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'services/ad_service.dart';
 import 'utils/theme.dart';
 
 void main() async {
@@ -17,6 +19,9 @@ void main() async {
 
   // Open history box for persistent storage
   final historyBox = await Hive.openBox<String>('analysis_history');
+
+  // Initialize ads
+  await AdService.init();
 
   // Check onboarding flag
   final prefs = await SharedPreferences.getInstance();
@@ -45,6 +50,7 @@ class BuffetIndicatorApp extends StatelessWidget {
         ChangeNotifierProvider(
             create: (_) => AnalysisProvider(historyBox: historyBox)),
         ChangeNotifierProvider(create: (_) => SecProvider()..init()),
+        ChangeNotifierProvider(create: (_) => PremiumProvider()..init()),
       ],
       child: MaterialApp(
         title: 'Buffet Indicator',

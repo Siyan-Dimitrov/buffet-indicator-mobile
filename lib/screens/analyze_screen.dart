@@ -7,8 +7,11 @@ import 'package:share_plus/share_plus.dart' show Share;
 import '../models/financial_data.dart';
 import '../models/sec_financial_data.dart';
 import '../providers/analysis_provider.dart';
+import '../providers/premium_provider.dart';
 import '../providers/sec_provider.dart';
+import '../screens/premium_screen.dart';
 import '../utils/investor_content.dart';
+import '../widgets/banner_ad_widget.dart';
 import '../widgets/comparison_table.dart';
 import '../widgets/grade_card.dart';
 import '../widgets/metric_card.dart';
@@ -239,28 +242,51 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
             icon: const Icon(Icons.person),
             tooltip: 'Select Investor Profile',
             onSelected: (profile) {
+              final prem = context.read<PremiumProvider>();
+              if (!prem.canUseProfile(profile.name)) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const PremiumScreen()),
+                );
+                return;
+              }
               context.read<AnalysisProvider>().selectProfile(profile);
             },
-            itemBuilder: (context) => InvestorProfile.all
-                .map(
-                  (profile) => PopupMenuItem(
-                    value: profile,
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(profile.name),
-                      subtitle: Text(
-                        profile.description,
-                        style: Theme.of(context).textTheme.bodySmall,
+            itemBuilder: (context) {
+              final prem = context.read<PremiumProvider>();
+              return InvestorProfile.all
+                  .map(
+                    (profile) => PopupMenuItem(
+                      value: profile,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Row(
+                          children: [
+                            Expanded(child: Text(profile.name)),
+                            if (!prem.canUseProfile(profile.name))
+                              Icon(
+                                Icons.lock_outline,
+                                size: 16,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                          ],
+                        ),
+                        subtitle: Text(
+                          profile.description,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ),
                     ),
-                  ),
-                )
-                .toList(),
+                  )
+                  .toList();
+            },
           ),
         ],
       ),
-      body: Consumer2<AnalysisProvider, SecProvider>(
-        builder: (context, analysisProvider, secProvider, child) {
+      body: Consumer3<AnalysisProvider, SecProvider, PremiumProvider>(
+        builder: (context, analysisProvider, secProvider, premium, child) {
           final hasResults = analysisProvider.currentResult != null;
           final hasComparison = analysisProvider.comparisonResults != null;
 
@@ -413,6 +439,12 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                     ),
                   ),
 
+                  // Banner ad (free tier only)
+                  if (!premium.isPremium) ...[
+                    const SizedBox(height: 16),
+                    const Center(child: BannerAdWidget()),
+                  ],
+
                   // 5. Divider between results and form
                   const SizedBox(height: 24),
                   const Divider(thickness: 2),
@@ -456,12 +488,30 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // 7. Ticker search
-                TickerSearchField(
-                  onCompanySelected: (company) {
-                    // Auto-populate will happen via the listener below
-                  },
-                ),
+                // 7. Ticker search (premium only)
+                if (premium.canUseTicker)
+                  TickerSearchField(
+                    onCompanySelected: (company) {
+                      // Auto-populate will happen via the listener below
+                    },
+                  )
+                else
+                  Card(
+                    elevation: 0,
+                    color: Theme.of(context).colorScheme.surfaceContainerLow,
+                    child: ListTile(
+                      leading: const Icon(Icons.lock_outline),
+                      title: const Text('SEC Ticker Lookup'),
+                      subtitle: const Text('Auto-fill financials from SEC filings'),
+                      trailing: FilledButton.tonal(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const PremiumScreen()),
+                        ),
+                        child: const Text('Premium'),
+                      ),
+                    ),
+                  ),
 
                 // Listen for financial data and auto-populate
                 if (secProvider.financialData != null) ...[
@@ -823,10 +873,30 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
         ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
-          onPressed:
-              analysisProvider.isLoading ? null : _compareAllInvestors,
-          icon: const Icon(Icons.compare_arrows, size: 18),
-          label: const Text('Compare All Investors'),
+          onPressed: analysisProvider.isLoading
+              ? null
+              : () {
+                  final prem = context.read<PremiumProvider>();
+                  if (!prem.canCompare) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => const PremiumScreen()),
+                    );
+                    return;
+                  }
+                  _compareAllInvestors();
+                },
+          icon: Icon(
+            context.watch<PremiumProvider>().canCompare
+                ? Icons.compare_arrows
+                : Icons.lock_outline,
+            size: 18,
+          ),
+          label: Text(
+            context.watch<PremiumProvider>().canCompare
+                ? 'Compare All Investors'
+                : 'Compare All Investors (Premium)',
+          ),
         ),
       ],
     );
