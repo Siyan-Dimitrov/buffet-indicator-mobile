@@ -79,7 +79,7 @@ void main() {
       expect(metrics.pbRatio, equals(2.5));
 
       // ROIC = (15000 * 0.75) / (80000 + 50000 - 20000) * 100 = 10.23%
-      final expectedRoic = (15000 * 0.75) / (80000 + 50000 - 20000) * 100;
+      const expectedRoic = (15000 * 0.75) / (80000 + 50000 - 20000) * 100;
       expect(metrics.roic, closeTo(expectedRoic, 0.01));
 
       // ROE = 10000 / 80000 * 100 = 12.5%
@@ -290,11 +290,60 @@ void main() {
       final withoutGrowth =
           service.analyze(inputsWithoutGrowth, InvestorProfile.lynch);
 
-      final hasPeg = (AnalysisResult r) =>
-          r.criteria.any((c) => c.name == 'PEG Ratio');
+      bool hasPeg(AnalysisResult result) =>
+          result.criteria.any((criterion) => criterion.name == 'PEG Ratio');
 
       expect(hasPeg(withGrowth), isTrue);
       expect(hasPeg(withoutGrowth), isFalse);
+    });
+
+    test('missing optional metrics do not inflate the score denominator', () {
+      const inputs = FinancialInputs(
+        companyName: 'No Growth Corp',
+        ticker: 'NOG',
+        revenue: 100000,
+        operatingIncome: 20000,
+        netIncome: 12000,
+        freeCashFlow: 12000,
+        marketCap: 200000,
+        totalDebt: 30000,
+        cashAndEquivalents: 20000,
+        ebitda: 25000,
+        totalEquity: 50000,
+      );
+
+      final result = service.analyze(inputs, InvestorProfile.buffett);
+      final passed =
+          result.criteria.where((criterion) => criterion.passed).length;
+
+      expect(result.criteria.length, 11);
+      expect(
+        result.score,
+        (passed / AnalysisService.expectedCriteriaCount * 100).round(),
+      );
+    });
+
+    test('prescription currency respects model values being in millions', () {
+      const inputs = FinancialInputs(
+        companyName: 'Margin Gap Corp',
+        ticker: 'GAP',
+        revenue: 100000,
+        operatingIncome: 10000,
+        netIncome: 8000,
+        freeCashFlow: 6000,
+        marketCap: 200000,
+        totalDebt: 50000,
+        cashAndEquivalents: 10000,
+        ebitda: 15000,
+        totalEquity: 60000,
+      );
+
+      final result = service.analyze(inputs, InvestorProfile.buffett);
+
+      expect(
+        result.prescriptions.any((item) => item.contains(r'$5.00B')),
+        isTrue,
+      );
     });
 
     test('analyzeAll returns results for all 6 profiles', () {
@@ -344,10 +393,8 @@ void main() {
             reason: '${profile.name} maxPToFcf');
         expect(profile.maxPbRatio, isNotNull,
             reason: '${profile.name} maxPbRatio');
-        expect(profile.minRoic, isNotNull,
-            reason: '${profile.name} minRoic');
-        expect(profile.minRoe, isNotNull,
-            reason: '${profile.name} minRoe');
+        expect(profile.minRoic, isNotNull, reason: '${profile.name} minRoic');
+        expect(profile.minRoe, isNotNull, reason: '${profile.name} minRoe');
         expect(profile.minFcfToNetIncome, isNotNull,
             reason: '${profile.name} minFcfToNetIncome');
         expect(profile.maxPegRatio, isNotNull,

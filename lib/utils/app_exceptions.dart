@@ -76,7 +76,8 @@ class AppException implements Exception {
         }
         return AppException(
           type: AppErrorType.unknown,
-          userMessage: '${prefix}An unexpected error occurred (HTTP $statusCode).',
+          userMessage:
+              '${prefix}An unexpected error occurred (HTTP $statusCode).',
           technicalDetail: 'HTTP $statusCode: ${e.message}',
         );
 

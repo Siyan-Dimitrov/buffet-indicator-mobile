@@ -2,6 +2,9 @@ import '../models/financial_data.dart';
 
 /// Service for performing financial analysis calculations
 class AnalysisService {
+  /// Every screening style currently defines the same twelve checks.
+  static const int expectedCriteriaCount = 12;
+
   /// Analyze financial data against all investor profiles
   List<AnalysisResult> analyzeAll(FinancialInputs inputs) {
     return InvestorProfile.all
@@ -13,7 +16,9 @@ class AnalysisService {
   AnalysisResult analyze(FinancialInputs inputs, InvestorProfile profile) {
     final metrics = DerivedMetrics.fromInputs(inputs);
     final criteria = _evaluateCriteria(metrics, profile);
-    final score = _calculateScore(criteria);
+    // Keep scores comparable when an optional metric cannot be calculated.
+    // Unavailable checks do not silently shrink the denominator.
+    final score = _calculateScore(criteria, expectedCriteriaCount);
     final grade = _calculateGrade(score);
     final prescriptions = _generatePrescriptions(inputs, metrics, profile);
 
@@ -161,9 +166,10 @@ class AnalysisService {
     return criteria;
   }
 
-  int _calculateScore(List<CriterionResult> criteria) {
+  int _calculateScore(List<CriterionResult> criteria, int expectedCount) {
     final passedCount = criteria.where((c) => c.passed).length;
-    return (passedCount / criteria.length * 100).round();
+    if (expectedCount == 0) return 0;
+    return (passedCount / expectedCount * 100).round();
   }
 
   String _calculateGrade(int score) {
@@ -324,8 +330,7 @@ class AnalysisService {
     if (profile.minRoe != null &&
         metrics.roe != null &&
         metrics.roe! < profile.minRoe!) {
-      final requiredNetIncome =
-          profile.minRoe! / 100 * inputs.totalEquity;
+      final requiredNetIncome = profile.minRoe! / 100 * inputs.totalEquity;
       final netIncomeGap = requiredNetIncome - inputs.netIncome;
       if (netIncomeGap > 0) {
         prescriptions.add(
@@ -339,8 +344,7 @@ class AnalysisService {
     if (profile.minFcfToNetIncome != null &&
         metrics.fcfToNetIncome != null &&
         metrics.fcfToNetIncome! < profile.minFcfToNetIncome!) {
-      final requiredFcf =
-          profile.minFcfToNetIncome! / 100 * inputs.netIncome;
+      final requiredFcf = profile.minFcfToNetIncome! / 100 * inputs.netIncome;
       final fcfGap = requiredFcf - inputs.freeCashFlow;
       if (fcfGap > 0) {
         prescriptions.add(
@@ -364,7 +368,9 @@ class AnalysisService {
     return prescriptions;
   }
 
-  String _formatNumber(double value) {
+  String _formatNumber(double valueInMillions) {
+    // Form and model currency inputs are stored in USD millions.
+    final value = valueInMillions * 1e6;
     final absValue = value.abs();
     if (absValue >= 1e12) {
       return '${(value / 1e12).toStringAsFixed(2)}T';

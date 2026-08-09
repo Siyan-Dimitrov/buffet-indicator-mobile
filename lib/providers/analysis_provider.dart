@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/financial_data.dart';
 import '../services/analysis_service.dart';
@@ -8,6 +9,7 @@ import '../services/analysis_service.dart';
 class AnalysisProvider extends ChangeNotifier {
   final AnalysisService _analysisService = AnalysisService();
   final Box<String> _historyBox;
+  final SharedPreferences? _preferences;
 
   InvestorProfile _selectedProfile = InvestorProfile.buffett;
   AnalysisResult? _currentResult;
@@ -20,14 +22,31 @@ class AnalysisProvider extends ChangeNotifier {
   InvestorProfile get selectedProfile => _selectedProfile;
   AnalysisResult? get currentResult => _currentResult;
   List<AnalysisResult> get history => List.unmodifiable(_history);
-  List<AnalysisResult>? get comparisonResults =>
-      _comparisonResults != null ? List.unmodifiable(_comparisonResults!) : null;
+  List<AnalysisResult>? get comparisonResults => _comparisonResults != null
+      ? List.unmodifiable(_comparisonResults!)
+      : null;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  AnalysisProvider({required Box<String> historyBox})
-      : _historyBox = historyBox {
+  AnalysisProvider({
+    required Box<String> historyBox,
+    SharedPreferences? preferences,
+  })  : _historyBox = historyBox,
+        _preferences = preferences {
     _loadHistory();
+    _loadSelectedProfile();
+  }
+
+  void _loadSelectedProfile() {
+    final savedName = _preferences?.getString('selectedInvestorProfile');
+    if (savedName == null) return;
+
+    for (final profile in InvestorProfile.all) {
+      if (profile.name == savedName) {
+        _selectedProfile = profile;
+        return;
+      }
+    }
   }
 
   void _loadHistory() {
@@ -57,7 +76,12 @@ class AnalysisProvider extends ChangeNotifier {
 
   /// Change the selected investor profile
   void selectProfile(InvestorProfile profile) {
+    if (_selectedProfile == profile) return;
     _selectedProfile = profile;
+    _preferences?.setString('selectedInvestorProfile', profile.name);
+    _currentResult = null;
+    _comparisonResults = null;
+    _error = null;
     notifyListeners();
   }
 
@@ -68,10 +92,8 @@ class AnalysisProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Simulate network delay for realistic UX
-      await Future.delayed(const Duration(milliseconds: 300));
-
       _currentResult = _analysisService.analyze(inputs, _selectedProfile);
+      _comparisonResults = null;
       _history.insert(0, _currentResult!);
 
       // Keep only last 50 analyses
@@ -96,9 +118,8 @@ class AnalysisProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await Future.delayed(const Duration(milliseconds: 300));
-
       _comparisonResults = _analysisService.analyzeAll(inputs);
+      _currentResult = null;
     } catch (e) {
       _error = 'Comparison failed. Please check your inputs and try again.';
       debugPrint('Comparison error: $e');
@@ -136,5 +157,16 @@ class AnalysisProvider extends ChangeNotifier {
       _saveHistory();
       notifyListeners();
     }
+  }
+
+  /// Restore a history item, used by the delete undo affordance.
+  void restoreToHistory(int index, AnalysisResult result) {
+    final safeIndex = index.clamp(0, _history.length);
+    _history.insert(safeIndex, result);
+    if (_history.length > 50) {
+      _history = _history.sublist(0, 50);
+    }
+    _saveHistory();
+    notifyListeners();
   }
 }

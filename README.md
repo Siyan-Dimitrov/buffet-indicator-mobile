@@ -1,6 +1,6 @@
-# Buffet Indicator Mobile
+# Value Lens
 
-A Flutter mobile app for financial stock screening based on value investor criteria. Evaluate companies against the investment philosophies of Warren Buffett, Charlie Munger, Benjamin Graham, and other legendary investors.
+A Flutter mobile app for an educational first-pass stock screen. Search a US company, load available SEC fundamentals, and compare the result with simplified value-investing rule sets inspired by Buffett, Munger, Graham, and others.
 
 ## Features
 

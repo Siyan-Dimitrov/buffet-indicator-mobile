@@ -51,8 +51,7 @@ class TickerCacheService {
     final upperQuery = query.toUpperCase();
     final lowerQuery = query.toLowerCase();
 
-    final exactMatch =
-        _tickers.where((t) => t.ticker == upperQuery);
+    final exactMatch = _tickers.where((t) => t.ticker == upperQuery);
 
     final tickerStarts = _tickers.where(
         (t) => t.ticker.startsWith(upperQuery) && t.ticker != upperQuery);

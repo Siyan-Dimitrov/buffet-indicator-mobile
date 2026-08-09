@@ -11,60 +11,53 @@ class VerdictBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gradeColor = AppTheme.getGradeColor(result.grade);
+    final gradeColor = AppTheme.getGradeColor(
+      result.grade,
+      Theme.of(context).brightness,
+    );
     final verdict = InvestorContent.getVerdict(
       result.profile,
       result.grade,
       result.inputs.companyName,
     );
 
-    final icon = _getVerdictIcon(result.grade);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            gradeColor.withOpacity(0.18),
-            gradeColor.withOpacity(0.06),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return Semantics(
+      container: true,
+      label: verdict,
+      excludeSemantics: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: gradeColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: gradeColor.withOpacity(0.45)),
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: gradeColor.withOpacity(0.4)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: gradeColor, size: 48),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              verdict,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: gradeColor,
-                    fontWeight: FontWeight.w700,
-                  ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: gradeColor.withOpacity(0.14),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.fact_check_outlined, color: gradeColor),
             ),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                verdict,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: gradeColor,
+                      height: 1.35,
+                    ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
-  }
-
-  IconData _getVerdictIcon(String grade) {
-    switch (grade) {
-      case 'A':
-      case 'B':
-        return Icons.thumb_up;
-      case 'C':
-        return Icons.thumbs_up_down;
-      case 'D':
-      case 'F':
-      default:
-        return Icons.thumb_down;
-    }
   }
 }

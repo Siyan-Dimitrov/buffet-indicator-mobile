@@ -22,6 +22,7 @@ class SecProvider extends ChangeNotifier {
   AppException? _error;
   AppException? _stockPriceError;
   bool _lastErrorFromCache = false;
+  int _requestGeneration = 0;
 
   SecProvider({
     SecApiService? apiService,
@@ -58,7 +59,8 @@ class SecProvider extends ChangeNotifier {
       final tickers = await _apiService.fetchAllTickers();
       await _cacheService.updateCache(tickers);
     } catch (e) {
-      _error = AppException.fromGeneric(e, context: 'Failed to load ticker list');
+      _error =
+          AppException.fromGeneric(e, context: 'Failed to load ticker list');
       _lastErrorFromCache = true;
       debugPrint('refreshTickerCache error: $_error');
     } finally {
@@ -75,6 +77,7 @@ class SecProvider extends ChangeNotifier {
 
   /// Select a company and fetch its financial data from SEC + stock price.
   Future<void> selectCompany(SecCompany company) async {
+    final requestId = ++_requestGeneration;
     try {
       _selectedCompany = company;
       _lastSelectedCompany = company;
@@ -93,28 +96,42 @@ class SecProvider extends ChangeNotifier {
       Object? priceError;
 
       await Future.wait([
-        _apiService.getFinancialData(company).then((v) => secData = v).catchError((Object e) {
+        _apiService
+            .getFinancialData(company)
+            .then((v) => secData = v)
+            .catchError((Object e) {
           secError = e;
           secData = null;
           return null;
         }),
-        _stockPriceService.getPrice(company.ticker).then((v) => priceResult = v).catchError((Object e) {
+        _stockPriceService
+            .getPrice(company.ticker)
+            .then((v) => priceResult = v)
+            .catchError((Object e) {
           priceError = e;
           priceResult = (price: null, marketState: null);
           return priceResult;
         }),
       ]);
 
+      // Ignore a response if the user selected or cleared another company
+      // while this request was in flight.
+      if (requestId != _requestGeneration || _selectedCompany != company) {
+        return;
+      }
+
       // Handle SEC data error (critical)
       if (secError != null) {
-        _error = AppException.fromGeneric(secError!, context: 'Failed to load financial data');
+        _error = AppException.fromGeneric(secError!,
+            context: 'Failed to load financial data');
         debugPrint('SEC data fetch error: $_error');
         return;
       }
 
       // Handle stock price error (non-fatal)
       if (priceError != null) {
-        _stockPriceError = AppException.fromGeneric(priceError!, context: 'Stock price unavailable');
+        _stockPriceError = AppException.fromGeneric(priceError!,
+            context: 'Stock price unavailable');
         debugPrint('Stock price fetch error: $_stockPriceError');
       }
 
@@ -130,21 +147,25 @@ class SecProvider extends ChangeNotifier {
           currentStockPrice: priceResult.price,
           stockPriceAsOf: DateTime.now(),
         );
-      } else if (_stockPriceError == null) {
-        _stockPriceError = const AppException(
+      } else {
+        _stockPriceError ??= const AppException(
           type: AppErrorType.notFound,
           userMessage: 'Stock price not available for this ticker.',
         );
       }
     } on AppException catch (e) {
+      if (requestId != _requestGeneration) return;
       _error = e;
       debugPrint('selectCompany error: $e');
     } catch (e) {
+      if (requestId != _requestGeneration) return;
       _error = AppException.fromGeneric(e, context: 'Failed to fetch data');
       debugPrint('selectCompany unexpected error: $e');
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (requestId == _requestGeneration) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -159,11 +180,13 @@ class SecProvider extends ChangeNotifier {
 
   /// Clear the current selection and results.
   void clearSelection() {
+    _requestGeneration++;
     _selectedCompany = null;
     _financialData = null;
     _searchResults = [];
     _error = null;
     _stockPriceError = null;
+    _isLoading = false;
     notifyListeners();
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/financial_data.dart';
+import '../services/analysis_service.dart';
 import '../utils/theme.dart';
 
 class ComparisonTable extends StatelessWidget {
@@ -40,9 +41,7 @@ class ComparisonTable extends StatelessWidget {
                 Text(
                   'Multi-Investor Comparison',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onPrimaryContainer,
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
                         fontWeight: FontWeight.bold,
                       ),
                 ),
@@ -70,7 +69,10 @@ class ComparisonTable extends StatelessWidget {
   }
 
   Widget _buildRow(BuildContext context, AnalysisResult result, int index) {
-    final gradeColor = AppTheme.getGradeColor(result.grade);
+    final gradeColor = AppTheme.getGradeColor(
+      result.grade,
+      Theme.of(context).brightness,
+    );
     final passedCount = result.criteria.where((c) => c.passed).length;
     final isEven = index % 2 == 0;
 
@@ -118,7 +120,7 @@ class ComparisonTable extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '$passedCount/${result.criteria.length} criteria passed',
+                    '$passedCount/${AnalysisService.expectedCriteriaCount} checks matched',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.outline,
                         ),

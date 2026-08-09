@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/financial_data.dart';
 import '../utils/investor_content.dart';
+import '../utils/theme.dart';
 
 class MetricsDashboard extends StatelessWidget {
   final DerivedMetrics metrics;
@@ -52,7 +53,7 @@ class MetricsDashboard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Green = pass, Red = fail for ${profile.name}',
+              'Each value includes its status for the ${profile.name}-style screen.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.outline,
                   ),
@@ -80,43 +81,53 @@ class MetricsDashboard extends StatelessWidget {
     }
 
     return [
-      chip('FCF Yield', 'FCF Yield',
-          '${metrics.fcfYield.toStringAsFixed(1)}%'),
+      chip('FCF Yield', 'FCF Yield', '${metrics.fcfYield.toStringAsFixed(1)}%'),
       chip('Op Margin', 'Operating Margin',
           '${metrics.operatingMargin.toStringAsFixed(1)}%'),
       chip('Net Margin', 'Net Margin',
           '${metrics.netMargin.toStringAsFixed(1)}%'),
-      chip('Leverage', 'Leverage',
-          '${metrics.leverage.toStringAsFixed(2)}x'),
-      chip('P/E', 'P/E Ratio',
+      chip('Leverage', 'Leverage', '${metrics.leverage.toStringAsFixed(2)}x'),
+      chip(
+          'P/E',
+          'P/E Ratio',
           metrics.peRatio != null
               ? '${metrics.peRatio!.toStringAsFixed(1)}x'
               : 'N/A'),
-      chip('EV/EBITDA', 'EV/EBITDA',
+      chip(
+          'EV/EBITDA',
+          'EV/EBITDA',
           metrics.evToEbitda != null
               ? '${metrics.evToEbitda!.toStringAsFixed(1)}x'
               : 'N/A'),
-      chip('P/FCF', 'P/FCF',
+      chip(
+          'P/FCF',
+          'P/FCF',
           metrics.pToFcf != null
               ? '${metrics.pToFcf!.toStringAsFixed(1)}x'
               : 'N/A'),
-      chip('P/B', 'P/B Ratio',
+      chip(
+          'P/B',
+          'P/B Ratio',
           metrics.pbRatio != null
               ? '${metrics.pbRatio!.toStringAsFixed(2)}x'
               : 'N/A'),
-      chip('ROIC', 'ROIC',
+      chip(
+          'ROIC',
+          'ROIC',
           metrics.roic != null
               ? '${metrics.roic!.toStringAsFixed(1)}%'
               : 'N/A'),
       chip('ROE', 'ROE',
-          metrics.roe != null
-              ? '${metrics.roe!.toStringAsFixed(1)}%'
-              : 'N/A'),
-      chip('FCF/NI', 'FCF/Net Income',
+          metrics.roe != null ? '${metrics.roe!.toStringAsFixed(1)}%' : 'N/A'),
+      chip(
+          'FCF/NI',
+          'FCF/Net Income',
           metrics.fcfToNetIncome != null
               ? '${metrics.fcfToNetIncome!.toStringAsFixed(0)}%'
               : 'N/A'),
-      chip('PEG', 'PEG Ratio',
+      chip(
+          'PEG',
+          'PEG Ratio',
           metrics.pegRatio != null
               ? '${metrics.pegRatio!.toStringAsFixed(2)}x'
               : 'N/A'),
@@ -132,8 +143,7 @@ void showMetricInfoSheet(
   InvestorProfile profile,
 ) {
   final description = InvestorContent.metricDescriptions[metricName];
-  final commentary =
-      InvestorContent.getMetricCommentary(profile, metricName);
+  final commentary = InvestorContent.getMetricCommentary(profile, metricName);
 
   showModalBottomSheet(
     context: context,
@@ -181,8 +191,7 @@ void showMetricInfoSheet(
               commentary,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontStyle: FontStyle.italic,
-                    color:
-                        Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
             ),
           ],
@@ -214,16 +223,12 @@ class _MetricChip extends StatelessWidget {
     final Color valueColor;
     final Color labelColor;
 
-    if (passed == true) {
-      bgColor = Colors.green.withOpacity(0.12);
-      borderColor = Colors.green.withOpacity(0.4);
-      valueColor = Colors.green.shade700;
-      labelColor = Colors.green.shade800;
-    } else if (passed == false) {
-      bgColor = Colors.red.withOpacity(0.12);
-      borderColor = Colors.red.withOpacity(0.4);
-      valueColor = Colors.red.shade700;
-      labelColor = Colors.red.shade800;
+    if (passed != null) {
+      final statusColor = AppTheme.getStatusColor(context, passed!);
+      bgColor = statusColor.withOpacity(0.1);
+      borderColor = statusColor.withOpacity(0.4);
+      valueColor = statusColor;
+      labelColor = statusColor;
     } else {
       // Not evaluated (metric couldn't be computed)
       bgColor = scheme.surfaceContainerHighest;
@@ -232,43 +237,55 @@ class _MetricChip extends StatelessWidget {
       labelColor = scheme.outline;
     }
 
-    return GestureDetector(
-      onTap: onInfoTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: valueColor,
-                      ),
-                ),
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: labelColor,
-                      ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.info_outline,
-              size: 14,
-              color: labelColor,
-            ),
-          ],
+    final statusLabel = passed == null
+        ? 'Not evaluated'
+        : passed!
+            ? 'Pass'
+            : 'Needs attention';
+
+    return Semantics(
+      button: onInfoTap != null,
+      label: '$label, $value, $statusLabel',
+      child: InkWell(
+        onTap: onInfoTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    value,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: valueColor,
+                        ),
+                  ),
+                  Text(
+                    '$label · $statusLabel',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: labelColor,
+                        ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.info_outline,
+                size: 14,
+                color: labelColor,
+              ),
+            ],
+          ),
         ),
       ),
     );

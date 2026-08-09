@@ -24,17 +24,20 @@ void main() async {
 
   runApp(BuffetIndicatorApp(
     historyBox: historyBox,
+    preferences: prefs,
     showOnboarding: !hasSeenOnboarding,
   ));
 }
 
 class BuffetIndicatorApp extends StatelessWidget {
   final Box<String> historyBox;
+  final SharedPreferences preferences;
   final bool showOnboarding;
 
   const BuffetIndicatorApp({
     super.key,
     required this.historyBox,
+    required this.preferences,
     required this.showOnboarding,
   });
 
@@ -43,18 +46,20 @@ class BuffetIndicatorApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-            create: (_) => AnalysisProvider(historyBox: historyBox)),
+          create: (_) => AnalysisProvider(
+            historyBox: historyBox,
+            preferences: preferences,
+          ),
+        ),
         ChangeNotifierProvider(create: (_) => SecProvider()..init()),
       ],
       child: MaterialApp(
-        title: 'Buffet Indicator',
+        title: 'Value Lens',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: ThemeMode.system,
-        home: showOnboarding
-            ? const _OnboardingWrapper()
-            : const HomeScreen(),
+        home: showOnboarding ? const _OnboardingWrapper() : const HomeScreen(),
       ),
     );
   }

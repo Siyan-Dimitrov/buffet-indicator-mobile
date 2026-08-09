@@ -21,6 +21,7 @@ class _TickerSearchFieldState extends State<TickerSearchField> {
   final FocusNode _focusNode = FocusNode();
   Timer? _debounce;
   bool _showResults = false;
+  bool _hasSearched = false;
 
   @override
   void initState() {
@@ -41,10 +42,14 @@ class _TickerSearchFieldState extends State<TickerSearchField> {
   }
 
   void _onSearchChanged(String query) {
-    setState(() => _showResults = query.isNotEmpty);
+    setState(() {
+      _showResults = query.trim().isNotEmpty;
+      _hasSearched = false;
+    });
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
       context.read<SecProvider>().searchCompanies(query);
+      if (mounted) setState(() => _hasSearched = true);
     });
   }
 
@@ -61,16 +66,17 @@ class _TickerSearchFieldState extends State<TickerSearchField> {
       builder: (context, provider, _) {
         final isCacheLoading = provider.isCacheLoading;
         final tickerCount = provider.tickerCount;
-        final cacheError =
-            provider.error != null && isCacheLoading == false && tickerCount == 0;
+        final cacheError = provider.error != null &&
+            isCacheLoading == false &&
+            tickerCount == 0;
 
         String hintText;
         if (isCacheLoading) {
-          hintText = 'Loading company database...';
+          hintText = 'Preparing company search…';
         } else if (tickerCount > 0) {
           hintText = 'Search ${_formatCount(tickerCount)} companies';
         } else {
-          hintText = 'e.g., AAPL, MSFT, or Apple';
+          hintText = 'Try AAPL, MSFT, or Apple';
         }
 
         return Column(
@@ -81,13 +87,14 @@ class _TickerSearchFieldState extends State<TickerSearchField> {
               focusNode: _focusNode,
               enabled: !isCacheLoading,
               decoration: InputDecoration(
-                labelText: 'Search Ticker',
+                labelText: 'Ticker or company name',
                 hintText: hintText,
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _buildSuffixIcon(provider),
                 border: const OutlineInputBorder(),
               ),
               textCapitalization: TextCapitalization.characters,
+              textInputAction: TextInputAction.search,
               onChanged: _onSearchChanged,
             ),
 
@@ -130,7 +137,14 @@ class _TickerSearchFieldState extends State<TickerSearchField> {
               Builder(
                 builder: (context) {
                   if (provider.searchResults.isEmpty) {
-                    return const SizedBox.shrink();
+                    if (!_hasSearched) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 10, 4, 2),
+                      child: Text(
+                        'No matching SEC-listed companies found.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    );
                   }
                   return Card(
                     margin: const EdgeInsets.only(top: 4),
