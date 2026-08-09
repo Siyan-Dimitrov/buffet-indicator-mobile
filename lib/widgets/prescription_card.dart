@@ -20,8 +20,7 @@ class PrescriptionCard extends StatelessWidget {
     // "min" metrics are quality (actual < threshold).
     final valuationCriteria =
         failingCriteria.where((c) => c.isMaximum).toList();
-    final qualityCriteria =
-        failingCriteria.where((c) => !c.isMaximum).toList();
+    final qualityCriteria = failingCriteria.where((c) => !c.isMaximum).toList();
 
     return Card(
       elevation: 0,
@@ -89,19 +88,17 @@ class PrescriptionCard extends StatelessWidget {
                     Text(
                       '\u2022 ',
                       style: TextStyle(
-                        color:
-                            Theme.of(context).colorScheme.onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                     Expanded(
                       child: Text(
                         prescription,
-                        style:
-                            Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
                       ),
                     ),
                   ],
@@ -119,7 +116,8 @@ class PrescriptionCard extends StatelessWidget {
     final threshold = criterion.threshold;
 
     // Determine the max extent for the bar chart
-    final maxVal = [actual.abs(), threshold.abs()].reduce((a, b) => a > b ? a : b);
+    final maxVal =
+        [actual.abs(), threshold.abs()].reduce((a, b) => a > b ? a : b);
     final chartMax = maxVal * 1.3; // 30% padding
 
     return Padding(

@@ -441,8 +441,7 @@ class AnalysisResult extends Equatable {
   factory AnalysisResult.fromJson(Map<String, dynamic> json) {
     return AnalysisResult(
       inputs: FinancialInputs.fromJson(json['inputs'] as Map<String, dynamic>),
-      metrics:
-          DerivedMetrics.fromJson(json['metrics'] as Map<String, dynamic>),
+      metrics: DerivedMetrics.fromJson(json['metrics'] as Map<String, dynamic>),
       profile: InvestorProfile.fromName(json['profileName'] as String),
       grade: json['grade'] as String,
       score: json['score'] as int,

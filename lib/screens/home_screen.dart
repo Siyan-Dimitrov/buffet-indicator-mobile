@@ -14,18 +14,20 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = const [
-    AnalyzeScreen(),
-    HistoryScreen(),
-    SettingsScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final screens = [
+      const AnalyzeScreen(),
+      HistoryScreen(
+        onAnalyzeTap: () => setState(() => _currentIndex = 0),
+      ),
+      const SettingsScreen(),
+    ];
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: _screens,
+        children: screens,
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
@@ -38,12 +40,12 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationDestination(
             icon: Icon(Icons.analytics_outlined),
             selectedIcon: Icon(Icons.analytics),
-            label: 'Analyze',
+            label: 'Screen',
           ),
           NavigationDestination(
             icon: Icon(Icons.history_outlined),
             selectedIcon: Icon(Icons.history),
-            label: 'History',
+            label: 'Saved',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

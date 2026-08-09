@@ -1,139 +1,107 @@
 import 'package:flutter/material.dart';
 
 import '../models/financial_data.dart';
+import '../services/analysis_service.dart';
 import '../utils/theme.dart';
 
 class GradeCard extends StatelessWidget {
   final AnalysisResult result;
 
-  const GradeCard({
-    super.key,
-    required this.result,
-  });
+  const GradeCard({super.key, required this.result});
 
   @override
   Widget build(BuildContext context) {
-    final gradeColor = AppTheme.getGradeColor(result.grade);
-    final passedCount = result.criteria.where((c) => c.passed).length;
-    final totalCount = result.criteria.length;
+    final gradeColor = AppTheme.getGradeColor(
+      result.grade,
+      Theme.of(context).brightness,
+    );
+    final passedCount =
+        result.criteria.where((criterion) => criterion.passed).length;
+    final unavailable =
+        AnalysisService.expectedCriteriaCount - result.criteria.length;
 
-    return Card(
-      elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerLow,
+    final badge = Semantics(
+      label: 'Grade ${result.grade}, score ${result.score} percent',
+      excludeSemantics: true,
       child: Container(
+        width: 84,
+        height: 84,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: gradeColor.withOpacity(0.3),
-              blurRadius: 12,
-              spreadRadius: 1,
-            ),
-          ],
+          color: gradeColor.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: gradeColor, width: 2),
         ),
-        child: Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                // Animated grade circle
-                TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0.0, end: 1.0),
-                  duration: const Duration(milliseconds: 500),
-                  curve: Curves.elasticOut,
-                  builder: (context, value, child) {
-                    return Transform.scale(
-                      scale: value,
-                      child: child,
-                    );
-                  },
-                  child: Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      color: gradeColor.withOpacity(0.15),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: gradeColor,
-                        width: 3,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: gradeColor.withOpacity(0.25),
-                          blurRadius: 8,
-                          spreadRadius: 1,
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        result.grade,
-                        style: TextStyle(
-                          fontSize: 44,
-                          fontWeight: FontWeight.bold,
-                          color: gradeColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 20),
-
-                // Details
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        result.inputs.companyName,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      Text(
-                        result.inputs.ticker,
-                        style:
-                            Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Theme.of(context).colorScheme.outline,
-                                ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Text(
-                            'Score: ${result.score}%',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  color: gradeColor,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                          const SizedBox(width: 16),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '$passedCount/$totalCount passed',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+        child: Center(
+          child: Text(
+            result.grade,
+            style: TextStyle(
+              fontSize: 40,
+              height: 1,
+              fontWeight: FontWeight.w800,
+              color: gradeColor,
             ),
           ),
+        ),
+      ),
+    );
+
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          result.inputs.companyName,
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '${result.inputs.ticker}  •  ${result.profile.name}-style',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          '$passedCount of ${AnalysisService.expectedCriteriaCount} checks matched',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: gradeColor,
+              ),
+        ),
+        if (unavailable > 0) ...[
+          const SizedBox(height: 2),
+          Text(
+            '$unavailable ${unavailable == 1 ? 'check was' : 'checks were'} unavailable',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ],
+      ],
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 390) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  badge,
+                  const SizedBox(height: 16),
+                  details,
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                badge,
+                const SizedBox(width: 18),
+                Expanded(child: details),
+              ],
+            );
+          },
         ),
       ),
     );

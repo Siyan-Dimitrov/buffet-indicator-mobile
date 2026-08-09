@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  /// Called when onboarding is completed or skipped.
-  /// If null (e.g. launched from Settings), falls back to Navigator.pop().
   final VoidCallback? onComplete;
 
   const OnboardingScreen({super.key, this.onComplete});
@@ -13,316 +11,173 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
-
-  static const _investors = [
-    ('Warren Buffett', 'Quality businesses with strong moats'),
-    ('Charlie Munger', 'Quality at a fair price'),
-    ('Benjamin Graham', 'Deep value with margin of safety'),
-    ('Michael Burry', 'Contrarian deep value'),
-    ('Joel Greenblatt', 'High returns at low price'),
-    ('Peter Lynch', 'Growth at a reasonable price'),
-  ];
-
-  static const _investorIcons = [
-    Icons.business,
-    Icons.psychology,
-    Icons.shield,
-    Icons.trending_down,
-    Icons.auto_awesome,
-    Icons.rocket_launch,
-  ];
-
-  void _next() {
-    if (_currentPage < 2) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else {
-      _finish();
-    }
-  }
+  bool _finishing = false;
 
   Future<void> _finish() async {
+    if (_finishing) return;
+    setState(() => _finishing = true);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('hasSeenOnboarding', true);
-    if (mounted) {
-      if (widget.onComplete != null) {
-        widget.onComplete!();
-      } else {
-        Navigator.of(context).pop();
-      }
-    }
-  }
+    if (!mounted) return;
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
+    if (widget.onComplete != null) {
+      widget.onComplete!();
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          children: [
-            // Skip button
-            Align(
-              alignment: Alignment.topRight,
-              child: TextButton(
-                onPressed: _finish,
-                child: const Text('Skip'),
-              ),
-            ),
-
-            // Pages
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                onPageChanged: (page) {
-                  setState(() => _currentPage = page);
-                },
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildWelcomePage(context),
-                  _buildHowItWorksPage(context),
-                  _buildInvestorsPage(context),
-                ],
-              ),
-            ),
-
-            // Dot indicators + button
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Dots
-                  Row(
-                    children: List.generate(3, (index) {
-                      final isActive = index == _currentPage;
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        margin: const EdgeInsets.only(right: 8),
-                        width: isActive ? 24 : 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: isActive
-                              ? colorScheme.primary
-                              : colorScheme.outlineVariant,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      );
-                    }),
-                  ),
-
-                  // Next / Get Started button
-                  FilledButton(
-                    onPressed: _next,
-                    child: Text(
-                      _currentPage == 2 ? 'Get Started' : 'Next',
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: scheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Icon(
+                        Icons.travel_explore,
+                        color: scheme.onPrimaryContainer,
+                        size: 34,
+                      ),
                     ),
                   ),
+                  const SizedBox(height: 28),
+                  Text(
+                    'A clearer first look at any stock',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Value Lens checks company fundamentals against simplified value-investing rules, then shows what passed and what deserves a closer look.',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                  ),
+                  const SizedBox(height: 30),
+                  const _BenefitRow(
+                    icon: Icons.search,
+                    title: 'Search instead of typing',
+                    description:
+                        'Find a US company and load available SEC filing data automatically.',
+                  ),
+                  const SizedBox(height: 18),
+                  const _BenefitRow(
+                    icon: Icons.tune,
+                    title: 'Choose a screening style',
+                    description:
+                        'Compare the same company with Buffett-, Graham-, Lynch-, and other inspired rules.',
+                  ),
+                  const SizedBox(height: 18),
+                  const _BenefitRow(
+                    icon: Icons.fact_check_outlined,
+                    title: 'Understand the result',
+                    description:
+                        'See matched checks, missed targets, missing data, and the numbers behind the grade.',
+                  ),
+                  const SizedBox(height: 30),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.info_outline, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'This is an educational screening aid, not investment advice. Always verify the data and do wider research.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: _finishing ? null : _finish,
+                    icon: _finishing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.arrow_forward),
+                    label: const Text('Screen a stock'),
+                  ),
                 ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildWelcomePage(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.analytics,
-            size: 80,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(height: 32),
-          Text(
-            'Welcome to\nBuffet Indicator',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Screen stocks like the world\'s greatest value investors. '
-            'Evaluate any company against the criteria of Buffett, Graham, '
-            'Munger, and more.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
-        ],
-      ),
-    );
-  }
+class _BenefitRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
 
-  Widget _buildHowItWorksPage(BuildContext context) {
-    final steps = [
-      (Icons.edit_note, 'Enter Data', 'Input key financial metrics or search by ticker'),
-      (Icons.person_search, 'Pick Investor', 'Choose an investing legend\'s criteria'),
-      (Icons.grade, 'Get Grade', 'See an A-F grade with detailed analysis'),
-    ];
+  const _BenefitRow({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'How It Works',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(14),
           ),
-          const SizedBox(height: 40),
-          ...List.generate(steps.length, (index) {
-            final (icon, title, subtitle) = steps[index];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 24),
-              child: Row(
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .primaryContainer,
-                      shape: BoxShape.circle,
+          child: Icon(
+            icon,
+            color: Theme.of(context).colorScheme.onSecondaryContainer,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 3),
+              Text(
+                description,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
-                    child: Center(
-                      child: Icon(
-                        icon,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onPrimaryContainer,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${index + 1}. $title',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInvestorsPage(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'Meet the Investors',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            ],
           ),
-          const SizedBox(height: 24),
-          Flexible(
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 1.6,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              itemCount: _investors.length,
-              itemBuilder: (context, index) {
-                final (name, philosophy) = _investors[index];
-                return Card(
-                  elevation: 0,
-                  color:
-                      Theme.of(context).colorScheme.surfaceContainerLow,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          _investorIcons[index],
-                          size: 20,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          name,
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          philosophy,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

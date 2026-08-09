@@ -6,19 +6,29 @@ import '../models/financial_data.dart';
 import '../providers/analysis_provider.dart';
 import '../utils/investor_content.dart';
 import '../utils/theme.dart';
+import 'result_detail_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key});
+  final VoidCallback? onAnalyzeTap;
+
+  const HistoryScreen({super.key, this.onAnalyzeTap});
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
+  final _searchController = TextEditingController();
   String _searchQuery = '';
   String _selectedGrade = 'All';
 
   static const _gradeFilters = ['All', 'A', 'B', 'C', 'D', 'F'];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   List<AnalysisResult> _filterResults(List<AnalysisResult> history) {
     return history.where((result) {
@@ -43,21 +53,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Analysis History'),
+        title: const Text('Saved results'),
         actions: [
           Consumer<AnalysisProvider>(
             builder: (context, provider, child) {
               if (provider.history.isEmpty) return const SizedBox.shrink();
               return IconButton(
                 icon: const Icon(Icons.delete_sweep),
-                tooltip: 'Clear History',
+                tooltip: 'Clear saved results',
                 onPressed: () {
                   showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: const Text('Clear History'),
+                      title: const Text('Clear saved results?'),
                       content: const Text(
-                        'Are you sure you want to clear all analysis history?',
+                        'This removes every saved screening result from this device.',
                       ),
                       actions: [
                         TextButton(
@@ -94,10 +104,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'No analysis history yet',
+                    'No saved results yet',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           color: Theme.of(context).colorScheme.outline,
                         ),
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    onPressed: widget.onAnalyzeTap,
+                    icon: const Icon(Icons.search),
+                    label: const Text('Screen a stock'),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -119,6 +135,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: TextField(
+                  controller: _searchController,
                   decoration: InputDecoration(
                     hintText: 'Search by name or ticker',
                     prefixIcon: const Icon(Icons.search),
@@ -126,6 +143,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ? IconButton(
                             icon: const Icon(Icons.clear),
                             onPressed: () {
+                              _searchController.clear();
                               setState(() => _searchQuery = '');
                             },
                           )
@@ -156,10 +174,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           setState(() => _selectedGrade = grade);
                         },
                         backgroundColor: grade != 'All'
-                            ? AppTheme.getGradeColor(grade).withOpacity(0.1)
+                            ? AppTheme.getGradeColor(
+                                grade,
+                                Theme.of(context).brightness,
+                              ).withOpacity(0.1)
                             : null,
                         selectedColor: grade != 'All'
-                            ? AppTheme.getGradeColor(grade).withOpacity(0.3)
+                            ? AppTheme.getGradeColor(
+                                grade,
+                                Theme.of(context).brightness,
+                              ).withOpacity(0.3)
                             : null,
                       ),
                     );
@@ -198,8 +222,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         itemCount: filtered.length,
                         itemBuilder: (context, index) {
                           final result = filtered[index];
-                          final gradeColor =
-                              AppTheme.getGradeColor(result.grade);
+                          final gradeColor = AppTheme.getGradeColor(
+                            result.grade,
+                            Theme.of(context).brightness,
+                          );
 
                           return Dismissible(
                             key: Key(
@@ -211,8 +237,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               color: Theme.of(context).colorScheme.error,
                               child: Icon(
                                 Icons.delete,
-                                color:
-                                    Theme.of(context).colorScheme.onError,
+                                color: Theme.of(context).colorScheme.onError,
                               ),
                             ),
                             onDismissed: (_) {
@@ -221,6 +246,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   provider.history.indexOf(result);
                               if (originalIndex >= 0) {
                                 provider.removeFromHistory(originalIndex);
+                                ScaffoldMessenger.of(context)
+                                  ..hideCurrentSnackBar()
+                                  ..showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        '${result.inputs.ticker} removed from saved results',
+                                      ),
+                                      action: SnackBarAction(
+                                        label: 'Undo',
+                                        onPressed: () =>
+                                            provider.restoreToHistory(
+                                          originalIndex,
+                                          result,
+                                        ),
+                                      ),
+                                    ),
+                                  );
                               }
                             },
                             child: Card(
@@ -239,13 +281,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   ),
                                 ),
                                 child: ListTile(
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            ResultDetailScreen(result: result),
+                                      ),
+                                    );
+                                  },
                                   leading: Container(
                                     width: 48,
                                     height: 48,
                                     decoration: BoxDecoration(
                                       color: gradeColor.withOpacity(0.15),
-                                      borderRadius:
-                                          BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Center(
                                       child: Text(
@@ -288,12 +337,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       ),
                                       const SizedBox(width: 4),
                                       IconButton(
-                                        icon: const Icon(Icons.share,
-                                            size: 18),
+                                        icon: const Icon(Icons.share, size: 18),
                                         tooltip: 'Share',
                                         onPressed: () {
-                                          final text = InvestorContent
-                                              .generateShareText(result);
+                                          final text =
+                                              InvestorContent.generateShareText(
+                                                  result);
                                           Share.share(text);
                                         },
                                       ),
@@ -320,13 +369,25 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final dateOnly = DateTime(date.year, date.month, date.day);
     final diff = today.difference(dateOnly).inDays;
 
-    if (diff == 0) return 'Today';
-    if (diff == 1) return 'Yesterday';
+    final time = TimeOfDay.fromDateTime(date).format(context);
+    if (diff == 0) return 'Today, $time';
+    if (diff == 1) return 'Yesterday, $time';
 
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
-    return '${months[date.month - 1]} ${date.day}';
+    final year = date.year == now.year ? '' : ' ${date.year}';
+    return '${months[date.month - 1]} ${date.day}$year, $time';
   }
 }

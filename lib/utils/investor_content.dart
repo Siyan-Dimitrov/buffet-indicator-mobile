@@ -1,128 +1,61 @@
 import '../models/financial_data.dart';
 
-/// Grade-to-verdict sentences per investor
+/// Plain-language interpretation of a rule match.
 class InvestorContent {
-  static String getVerdict(InvestorProfile profile, String grade, String companyName) {
-    final firstName = profile.name.split(' ').first;
-    final lastName = profile.name.split(' ').last;
-
+  static String getVerdict(
+      InvestorProfile profile, String grade, String companyName) {
     switch (grade) {
       case 'A':
-        return _positiveVerdict(profile.name, companyName);
+        return 'Strong match: $companyName meets most of the rules in this ${profile.name}-style screen.';
       case 'B':
-        return _leanPositiveVerdict(profile.name, companyName);
+        return 'Good match: $companyName meets many of the rules in this ${profile.name}-style screen.';
       case 'C':
-        return _cautiousVerdict(firstName, lastName, companyName);
+        return 'Mixed match: $companyName passes some checks, with several areas to review.';
       case 'D':
-        return _leanNegativeVerdict(firstName, lastName, companyName);
+        return 'Weak match: $companyName misses many of the rules in this screening style.';
       case 'F':
       default:
-        return _negativeVerdict(profile.name, companyName);
+        return 'Low match: $companyName meets few of the rules in this screening style.';
     }
-  }
-
-  static String _positiveVerdict(String name, String company) {
-    final verdicts = {
-      'Warren Buffett':
-          '$name would likely invest in $company — a quality business with strong fundamentals.',
-      'Charlie Munger':
-          '$name would approve of $company — quality at a fair price.',
-      'Benjamin Graham':
-          '$name would see $company as a sound investment with ample margin of safety.',
-      'Michael Burry':
-          '$name would see deep value in $company — the numbers strongly support this pick.',
-      'Joel Greenblatt':
-          '$name\'s magic formula ranks $company highly — strong returns at a low price.',
-      'Peter Lynch':
-          '$name would call $company a great GARP pick — growth at a very reasonable price.',
-    };
-    return verdicts[name] ?? '$name would likely invest in $company.';
-  }
-
-  static String _leanPositiveVerdict(String name, String company) {
-    final verdicts = {
-      'Warren Buffett':
-          '$name would likely consider $company — solid fundamentals with minor concerns.',
-      'Charlie Munger':
-          '$name would find $company mostly attractive, though not perfect.',
-      'Benjamin Graham':
-          '$name would see reasonable value in $company, with some room for improvement.',
-      'Michael Burry':
-          '$name would find $company interesting — good value with slight reservations.',
-      'Joel Greenblatt':
-          '$name\'s formula shows $company is promising, with one area to watch.',
-      'Peter Lynch':
-          '$name would see $company as a decent GARP candidate worth monitoring.',
-    };
-    return verdicts[name] ?? '$name would likely consider $company.';
-  }
-
-  static String _cautiousVerdict(
-      String firstName, String lastName, String company) {
-    return '$firstName $lastName would be cautious about $company — mixed signals across key metrics.';
-  }
-
-  static String _leanNegativeVerdict(
-      String firstName, String lastName, String company) {
-    return '$firstName $lastName would likely pass on $company — too few criteria met.';
-  }
-
-  static String _negativeVerdict(String name, String company) {
-    final verdicts = {
-      'Warren Buffett':
-          '$name would pass on $company — it doesn\'t meet his quality standards.',
-      'Charlie Munger':
-          '$name would say $company is "not even close" to his requirements.',
-      'Benjamin Graham':
-          '$name would see no margin of safety in $company at current levels.',
-      'Michael Burry':
-          '$name would not find deep value in $company — the numbers don\'t add up.',
-      'Joel Greenblatt':
-          '$name\'s magic formula would rank $company poorly — avoid.',
-      'Peter Lynch':
-          '$name would skip $company — neither growth nor value is compelling here.',
-    };
-    return verdicts[name] ?? '$name would likely pass on $company.';
   }
 
   /// General metric descriptions — what each metric is and why it matters
   static const Map<String, String> metricDescriptions = {
     'FCF Yield':
         'Free Cash Flow Yield measures the cash a company generates relative to its market cap. '
-        'A higher yield means you\'re paying less for each dollar of real cash the business produces.',
+            'A higher yield means you\'re paying less for each dollar of real cash the business produces.',
     'Operating Margin':
         'Operating Margin is the percentage of revenue left after covering operating expenses. '
-        'A wide margin signals competitive advantage and efficient operations.',
+            'A wide margin signals competitive advantage and efficient operations.',
     'Net Margin':
         'Net Margin is the percentage of revenue that becomes profit after all expenses, taxes, and interest. '
-        'It reflects overall profitability and pricing power.',
+            'It reflects overall profitability and pricing power.',
     'Leverage':
         'Leverage (Net Debt / EBITDA) measures how many years of earnings it would take to pay off debt. '
-        'Lower leverage means less financial risk and more flexibility during downturns.',
+            'Lower leverage means less financial risk and more flexibility during downturns.',
     'P/E Ratio':
         'Price-to-Earnings Ratio measures how much investors pay per dollar of earnings. '
-        'A lower P/E can indicate undervaluation, while a very high P/E may signal overpricing.',
+            'A lower P/E can indicate undervaluation, while a very high P/E may signal overpricing.',
     'EV/EBITDA':
         'Enterprise Value to EBITDA compares the total value of a business (including debt) to its operating earnings. '
-        'It\'s often more accurate than P/E for comparing companies with different capital structures.',
+            'It\'s often more accurate than P/E for comparing companies with different capital structures.',
     'P/FCF':
         'Price-to-Free-Cash-Flow measures the price you pay per dollar of actual cash generated. '
-        'Unlike P/E, it focuses on real cash rather than accounting earnings, making it harder to manipulate.',
+            'Unlike P/E, it focuses on real cash rather than accounting earnings, making it harder to manipulate.',
     'P/B Ratio':
         'Price-to-Book Ratio compares a company\'s market price to its net asset value. '
-        'A low P/B can indicate undervaluation or provide a floor on downside risk.',
-    'ROIC':
-        'Return on Invested Capital measures how efficiently a company turns capital into profits. '
+            'A low P/B can indicate undervaluation or provide a floor on downside risk.',
+    'ROIC': 'Return on Invested Capital measures how efficiently a company turns capital into profits. '
         'A high ROIC indicates strong competitive advantages and smart capital allocation.',
     'ROE':
         'Return on Equity measures how much profit a company generates for each dollar of shareholder equity. '
-        'It shows how well management creates value for shareholders.',
+            'It shows how well management creates value for shareholders.',
     'FCF/Net Income':
         'FCF-to-Net-Income ratio measures earnings quality — what percentage of reported profits is backed by real cash. '
-        'A ratio above 80% suggests reliable, high-quality earnings.',
+            'A ratio above 80% suggests reliable, high-quality earnings.',
     'PEG Ratio':
         'The PEG Ratio divides P/E by the earnings growth rate, adjusting valuation for growth. '
-        'A PEG below 1.0 suggests you\'re getting growth at a bargain price.',
+            'A PEG below 1.0 suggests you\'re getting growth at a bargain price.',
   };
 
   /// Investor-specific commentary per metric
@@ -295,37 +228,37 @@ class InvestorContent {
   /// Generate a plain-text summary for sharing
   static String generateShareText(AnalysisResult result) {
     final buffer = StringBuffer();
-    buffer.writeln('📊 Buffet Indicator Analysis');
-    buffer.writeln('═══════════════════════════');
+    buffer.writeln('Value Lens screening result');
+    buffer.writeln('---------------------------');
     buffer.writeln();
-    buffer.writeln(
-        '${result.inputs.companyName} (${result.inputs.ticker})');
+    buffer.writeln('${result.inputs.companyName} (${result.inputs.ticker})');
     buffer.writeln('Investor: ${result.profile.name}');
     buffer.writeln('Grade: ${result.grade} (${result.score}%)');
     buffer.writeln();
 
     buffer.writeln('Metrics:');
     for (final c in result.criteria) {
-      final icon = c.passed ? '✅' : '❌';
+      final status = c.passed ? 'PASS' : 'REVIEW';
       final label = c.isMaximum ? 'Max' : 'Min';
       buffer.writeln(
-          '$icon ${c.name}: ${c.actualValue.toStringAsFixed(2)}${c.unit} ($label: ${c.threshold.toStringAsFixed(2)}${c.unit})');
+          '$status - ${c.name}: ${c.actualValue.toStringAsFixed(2)}${c.unit} ($label: ${c.threshold.toStringAsFixed(2)}${c.unit})');
     }
 
     if (result.prescriptions.isNotEmpty) {
       buffer.writeln();
-      buffer.writeln('Prescriptions:');
+      buffer.writeln('What would need to change:');
       for (final p in result.prescriptions) {
-        buffer.writeln('• $p');
+        buffer.writeln('- $p');
       }
     }
 
     buffer.writeln();
-    buffer.writeln(getVerdict(result.profile, result.grade,
-        result.inputs.companyName));
+    buffer.writeln(
+        getVerdict(result.profile, result.grade, result.inputs.companyName));
 
     buffer.writeln();
-    buffer.writeln('— Buffet Indicator App');
+    buffer.writeln('Screening aid only - not investment advice.');
+    buffer.writeln('Value Lens');
 
     return buffer.toString();
   }

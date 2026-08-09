@@ -9,13 +9,9 @@ import '../models/sec_financial_data.dart';
 import '../providers/analysis_provider.dart';
 import '../providers/sec_provider.dart';
 import '../utils/investor_content.dart';
+import '../widgets/analysis_result_view.dart';
 import '../widgets/comparison_table.dart';
-import '../widgets/grade_card.dart';
-import '../widgets/metric_card.dart';
-import '../widgets/metrics_dashboard.dart';
-import '../widgets/prescription_card.dart';
 import '../widgets/ticker_search_field.dart';
-import '../widgets/verdict_banner.dart';
 
 class AnalyzeScreen extends StatefulWidget {
   const AnalyzeScreen({super.key});
@@ -26,8 +22,9 @@ class AnalyzeScreen extends StatefulWidget {
 
 class _AnalyzeScreenState extends State<AnalyzeScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _inputsKey = GlobalKey();
+  final _scrollController = ScrollController();
 
-  // Form controllers
   final _companyNameController = TextEditingController();
   final _tickerController = TextEditingController();
   final _revenueController = TextEditingController();
@@ -43,6 +40,12 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
   final _stockPriceController = TextEditingController();
 
   double? _sharesDiluted;
+  bool _showInputs = false;
+  int _searchFieldGeneration = 0;
+  String? _appliedDataKey;
+  String? _scheduledDataKey;
+  List<String> _secDataWarnings = [];
+  List<String> _optionalWarnings = [];
 
   @override
   void initState() {
@@ -52,6 +55,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _companyNameController.dispose();
     _tickerController.dispose();
     _revenueController.dispose();
@@ -71,111 +75,106 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
   void _onStockPriceChanged() {
     if (_sharesDiluted == null) return;
     final price = double.tryParse(_stockPriceController.text);
-    if (price != null) {
-      final marketCap = price * _sharesDiluted!;
-      _marketCapController.text = _formatForForm(marketCap);
-    }
+    if (price == null) return;
+    _marketCapController.text = _formatForForm(price * _sharesDiluted!);
   }
 
-  /// Convert raw dollars to millions for the form.
   String _formatForForm(double? value) {
     if (value == null) return '';
     return (value / 1e6).toStringAsFixed(2);
   }
 
-  void _autoPopulate(SecFinancialData data) {
+  String _dataKey(SecFinancialData data) {
+    return '${data.cik}|${data.periodEndDate?.toIso8601String()}|${data.currentStockPrice}';
+  }
+
+  void _scheduleAutoPopulate(SecFinancialData data) {
+    final key = _dataKey(data);
+    if (key == _appliedDataKey || key == _scheduledDataKey) return;
+    _scheduledDataKey = key;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _autoPopulate(data, key);
+    });
+  }
+
+  void _autoPopulate(SecFinancialData data, String key) {
     _companyNameController.text = data.companyName;
     _tickerController.text = data.ticker;
 
-    // Track which fields couldn't be pulled from SEC filings
-    final missing = <String>[];
+    // Clear values that must never carry over from a previously selected company.
+    _earningsGrowthRateController.clear();
+    _stockPriceController.clear();
+    _marketCapController.clear();
+    _sharesDiluted = data.sharesDiluted;
 
-    void populateField(
+    final missing = <String>[];
+    void populate(
       TextEditingController controller,
       double? value,
-      String fieldName,
+      String label,
     ) {
       controller.text = _formatForForm(value);
-      if (value == null) missing.add(fieldName);
+      if (value == null) missing.add(label);
     }
 
-    populateField(_revenueController, data.revenue, 'Revenue');
-    populateField(
-        _operatingIncomeController, data.operatingIncome, 'Operating Income');
-    populateField(_netIncomeController, data.netIncome, 'Net Income');
-    populateField(_fcfController, data.freeCashFlow, 'Free Cash Flow');
-    populateField(_totalDebtController, data.totalDebt, 'Total Debt');
-    populateField(
-        _cashController, data.cashAndEquivalents, 'Cash & Equivalents');
-    populateField(_ebitdaController, data.calculatedEbitda, 'EBITDA');
-    populateField(_totalEquityController, data.totalEquity, 'Total Equity');
+    populate(_revenueController, data.revenue, 'Revenue');
+    populate(
+        _operatingIncomeController, data.operatingIncome, 'Operating income');
+    populate(_netIncomeController, data.netIncome, 'Net income');
+    populate(_fcfController, data.freeCashFlow, 'Free cash flow');
+    populate(_totalDebtController, data.totalDebt, 'Total debt');
+    populate(_cashController, data.cashAndEquivalents, 'Cash and equivalents');
+    populate(_ebitdaController, data.calculatedEbitda, 'EBITDA');
+    populate(_totalEquityController, data.totalEquity, 'Total equity');
 
-    // Auto-fill earnings growth rate if calculable from SEC data
-    if (data.earningsGrowthRate != null) {
+    if (data.earningsGrowthRate != null && data.earningsGrowthRate! > 0) {
       _earningsGrowthRateController.text =
           data.earningsGrowthRate!.toStringAsFixed(1);
     }
 
-    _sharesDiluted = data.sharesDiluted;
-
-    // Auto-fill stock price if available from Yahoo Finance
-    if (data.currentStockPrice != null) {
+    if (data.currentStockPrice != null && data.sharesDiluted != null) {
       _stockPriceController.text = data.currentStockPrice!.toStringAsFixed(2);
-      // _onStockPriceChanged listener will auto-calculate market cap
+      _marketCapController.text = _formatForForm(
+        data.currentStockPrice! * data.sharesDiluted!,
+      );
     } else {
-      // If user already entered a stock price, calculate market cap
-      final price = double.tryParse(_stockPriceController.text);
-      if (price != null && _sharesDiluted != null) {
-        final marketCap = price * _sharesDiluted!;
-        _marketCapController.text = _formatForForm(marketCap);
-      } else {
-        _marketCapController.text = '';
-      }
+      missing.add('Market cap');
     }
 
     setState(() {
+      _appliedDataKey = key;
+      _scheduledDataKey = null;
       _secDataWarnings = missing;
+      _optionalWarnings = [];
+      _showInputs = missing.isNotEmpty;
     });
-
-    // Only auto-analyze if no required fields are missing
-    if (missing.isEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _submitAnalysis();
-      });
-    }
   }
 
-  List<String> _optionalWarnings = [];
-  List<String> _secDataWarnings = [];
-
   FinancialInputs? _buildInputs() {
-    if (!_formKey.currentState!.validate()) return null;
-    final warnings = <String>[];
+    final form = _formKey.currentState;
+    if (form == null || !form.validate()) return null;
 
-    // Parse optional earnings growth rate — never blocks submission
+    final warnings = <String>[];
     double? earningsGrowthRate;
     final growthText = _earningsGrowthRateController.text.trim();
     if (growthText.isNotEmpty) {
       final parsed = double.tryParse(growthText);
-      if (parsed == null || parsed <= 0) {
-        warnings.add(
-          'Earnings Growth Rate ignored — must be a positive number. '
-          'PEG ratio will not be calculated.',
-        );
-      } else {
+      if (parsed != null && parsed > 0) {
         earningsGrowthRate = parsed;
+      } else {
+        warnings.add(
+            'Earnings growth was ignored, so the PEG check is unavailable.');
       }
     } else {
       warnings.add(
-        'No Earnings Growth Rate provided — PEG ratio will not be calculated.',
-      );
+          'No earnings growth was available, so the PEG check is unavailable.');
     }
-
     setState(() => _optionalWarnings = warnings);
 
     return FinancialInputs(
-      companyName: _companyNameController.text,
-      ticker: _tickerController.text.toUpperCase(),
+      companyName: _companyNameController.text.trim(),
+      ticker: _tickerController.text.trim().toUpperCase(),
       revenue: double.parse(_revenueController.text),
       operatingIncome: double.parse(_operatingIncomeController.text),
       netIncome: double.parse(_netIncomeController.text),
@@ -189,452 +188,223 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     );
   }
 
-  void _submitAnalysis() {
-    final inputs = _buildInputs();
-    if (inputs != null) {
-      context.read<AnalysisProvider>().analyze(inputs);
+  Future<void> _revealInvalidInputs() async {
+    setState(() => _showInputs = true);
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+    final inputContext = _inputsKey.currentContext;
+    if (inputContext != null) {
+      if (!inputContext.mounted) return;
+      await Scrollable.ensureVisible(
+        inputContext,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        alignment: 0.05,
+      );
     }
   }
 
-  void _compareAllInvestors() {
+  Future<void> _submitAnalysis() async {
+    FocusScope.of(context).unfocus();
     final inputs = _buildInputs();
-    if (inputs != null) {
-      context.read<AnalysisProvider>().compareAll(inputs);
+    if (inputs == null) {
+      await _revealInvalidInputs();
+      return;
     }
+
+    await context.read<AnalysisProvider>().analyze(inputs);
+    if (!mounted) return;
+    await _scrollToTop();
   }
 
-  void _shareResult(AnalysisResult result) {
-    final text = InvestorContent.generateShareText(result);
-    Share.share(text);
+  Future<void> _compareAllInvestors() async {
+    FocusScope.of(context).unfocus();
+    final inputs = _buildInputs();
+    if (inputs == null) {
+      await _revealInvalidInputs();
+      return;
+    }
+
+    await context.read<AnalysisProvider>().compareAll(inputs);
+    if (!mounted) return;
+    await _scrollToTop();
+  }
+
+  Future<void> _compareResult(AnalysisResult result) async {
+    await context.read<AnalysisProvider>().compareAll(result.inputs);
+    if (!mounted) return;
+    await _scrollToTop();
+  }
+
+  Future<void> _scrollToTop() async {
+    if (!_scrollController.hasClients) return;
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _editInputs() {
+    context.read<AnalysisProvider>().clearResult();
+    setState(() => _showInputs = true);
   }
 
   void _clearForm() {
-    _companyNameController.clear();
-    _tickerController.clear();
-    _revenueController.clear();
-    _operatingIncomeController.clear();
-    _netIncomeController.clear();
-    _fcfController.clear();
-    _marketCapController.clear();
-    _totalDebtController.clear();
-    _cashController.clear();
-    _ebitdaController.clear();
-    _totalEquityController.clear();
-    _earningsGrowthRateController.clear();
-    _stockPriceController.clear();
-    _sharesDiluted = null;
-    _optionalWarnings = [];
-    _secDataWarnings = [];
+    for (final controller in [
+      _companyNameController,
+      _tickerController,
+      _revenueController,
+      _operatingIncomeController,
+      _netIncomeController,
+      _fcfController,
+      _marketCapController,
+      _totalDebtController,
+      _cashController,
+      _ebitdaController,
+      _totalEquityController,
+      _earningsGrowthRateController,
+      _stockPriceController,
+    ]) {
+      controller.clear();
+    }
     context.read<AnalysisProvider>().clearResult();
     context.read<SecProvider>().clearSelection();
+    setState(() {
+      _sharesDiluted = null;
+      _showInputs = false;
+      _searchFieldGeneration++;
+      _appliedDataKey = null;
+      _scheduledDataKey = null;
+      _secDataWarnings = [];
+      _optionalWarnings = [];
+    });
+    _scrollToTop();
+  }
+
+  void _loadDemo() {
+    context.read<SecProvider>().clearSelection();
+    context.read<AnalysisProvider>().clearResult();
+    _companyNameController.text = 'Sample Quality Co.';
+    _tickerController.text = 'DEMO';
+    _revenueController.text = '100000';
+    _operatingIncomeController.text = '24000';
+    _netIncomeController.text = '18000';
+    _fcfController.text = '17000';
+    _marketCapController.text = '300000';
+    _totalDebtController.text = '35000';
+    _cashController.text = '25000';
+    _ebitdaController.text = '30000';
+    _totalEquityController.text = '90000';
+    _earningsGrowthRateController.text = '12';
+    _stockPriceController.clear();
+    setState(() {
+      _sharesDiluted = null;
+      _showInputs = false;
+      _searchFieldGeneration++;
+      _appliedDataKey = null;
+      _secDataWarnings = [];
+      _optionalWarnings = [];
+    });
+  }
+
+  Future<void> _showProfilePicker(AnalysisProvider provider) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.78,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Choose a screening style',
+                      style: Theme.of(sheetContext).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Each style uses different simplified targets. It does not reproduce an investor’s full process.',
+                      style:
+                          Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(sheetContext)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: InvestorProfile.all.map((profile) {
+                    final selected = provider.selectedProfile == profile;
+                    return RadioListTile<InvestorProfile>(
+                      value: profile,
+                      groupValue: provider.selectedProfile,
+                      title: Text('${profile.name}-style'),
+                      subtitle: Text(profile.description),
+                      secondary:
+                          selected ? const Icon(Icons.check_circle) : null,
+                      onChanged: (value) {
+                        if (value != null) provider.selectProfile(value);
+                        Navigator.pop(sheetContext);
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Buffet Indicator'),
-        actions: [
-          PopupMenuButton<InvestorProfile>(
-            icon: const Icon(Icons.person),
-            tooltip: 'Select Investor Profile',
-            onSelected: (profile) {
-              context.read<AnalysisProvider>().selectProfile(profile);
-            },
-            itemBuilder: (context) => InvestorProfile.all
-                .map(
-                  (profile) => PopupMenuItem(
-                    value: profile,
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(profile.name),
-                      subtitle: Text(
-                        profile.description,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-        ],
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.travel_explore, size: 23),
+            SizedBox(width: 9),
+            Text('Value Lens'),
+          ],
+        ),
       ),
       body: Consumer2<AnalysisProvider, SecProvider>(
-        builder: (context, analysisProvider, secProvider, child) {
-          final hasResults = analysisProvider.currentResult != null;
-          final hasComparison = analysisProvider.comparisonResults != null;
+        builder: (context, analysisProvider, secProvider, _) {
+          final financialData = secProvider.financialData;
+          if (financialData != null) _scheduleAutoPopulate(financialData);
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ──────────────────────────────────
-                // RESULTS SECTION (only when results exist)
-                // ──────────────────────────────────
-                if (hasResults) ...[
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 400),
-                    child: Column(
-                      key: ValueKey(analysisProvider.currentResult!.analyzedAt),
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // 1. Verdict banner (hero)
-                        VerdictBanner(result: analysisProvider.currentResult!),
-                        const SizedBox(height: 16),
-
-                        // 2. Grade card with share button
-                        GradeCard(result: analysisProvider.currentResult!),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: FilledButton.tonalIcon(
-                            onPressed: () =>
-                                _shareResult(analysisProvider.currentResult!),
-                            icon: const Icon(Icons.share, size: 18),
-                            label: const Text('Share'),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-
-                        // 3. Comparison table (if available)
-                        if (hasComparison) ...[
-                          ComparisonTable(
-                            results: analysisProvider.comparisonResults!,
-                            onRowTap: (result) {
-                              final provider =
-                                  context.read<AnalysisProvider>();
-                              provider.selectProfile(result.profile);
-                              _submitAnalysis();
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-
-                        // 4. Metrics dashboard (all computed metrics)
-                        MetricsDashboard(
-                          metrics: analysisProvider.currentResult!.metrics,
-                          profile: analysisProvider.currentResult!.profile,
-                          criteria: analysisProvider.currentResult!.criteria,
-                        ),
-                        const SizedBox(height: 16),
-
-                        // 5. Criteria cards with commentary
-                        Text(
-                          'Metrics vs Thresholds',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        ...analysisProvider.currentResult!.criteria.map(
-                          (criterion) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: MetricCard(
-                              criterion: criterion,
-                              commentary:
-                                  InvestorContent.getMetricCommentary(
-                                analysisProvider.currentResult!.profile,
-                                criterion.name,
-                              ),
-                              profile: analysisProvider.currentResult!.profile,
-                            ),
-                          ),
-                        ),
-
-                        // Prescriptions
-                        if (analysisProvider
-                            .currentResult!.prescriptions.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Text(
-                            'Prescriptions',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          PrescriptionCard(
-                            prescriptions:
-                                analysisProvider.currentResult!.prescriptions,
-                            failingCriteria: analysisProvider
-                                .currentResult!.criteria
-                                .where((c) => !c.passed)
-                                .toList(),
-                          ),
-                        ],
-
-                        // Optional data warnings
-                        if (_optionalWarnings.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Card(
-                            elevation: 0,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .secondaryContainer
-                                .withOpacity(0.5),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(
-                                    Icons.info_outline,
-                                    size: 20,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSecondaryContainer,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: _optionalWarnings
-                                          .map((w) => Padding(
-                                                padding: const EdgeInsets.only(
-                                                    bottom: 4),
-                                                child: Text(
-                                                  w,
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodySmall
-                                                      ?.copyWith(
-                                                        color: Theme.of(context)
-                                                            .colorScheme
-                                                            .onSecondaryContainer,
-                                                      ),
-                                                ),
-                                              ))
-                                          .toList(),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-
-                  // 5. Divider between results and form
-                  const SizedBox(height: 24),
-                  const Divider(thickness: 2),
-                  const SizedBox(height: 16),
-                ],
-
-                // ──────────────────────────────────
-                // FORM SECTION
-                // ──────────────────────────────────
-
-                // 6. Profile indicator
-                Card(
-                  elevation: 0,
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.person_outline),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                analysisProvider.selectedProfile.name,
-                                style:
-                                    Theme.of(context).textTheme.titleMedium,
-                              ),
-                              Text(
-                                analysisProvider.selectedProfile.description,
-                                style:
-                                    Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+            controller: _scrollController,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  child: _buildCurrentView(
+                    context,
+                    analysisProvider,
+                    secProvider,
+                    financialData,
                   ),
                 ),
-                const SizedBox(height: 16),
-
-                // 7. Ticker search
-                TickerSearchField(
-                  onCompanySelected: (company) {
-                    // Auto-populate will happen via the listener below
-                  },
-                ),
-
-                // Listen for financial data and auto-populate
-                if (secProvider.financialData != null) ...[
-                  const SizedBox(height: 8),
-                  _buildPeriodBanner(secProvider.financialData!),
-                  const SizedBox(height: 8),
-                  FilledButton.tonal(
-                    onPressed: () =>
-                        _autoPopulate(secProvider.financialData!),
-                    child: const Text('Load & Analyze'),
-                  ),
-                ],
-
-                if (_secDataWarnings.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Card(
-                    elevation: 0,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .errorContainer
-                        .withOpacity(0.6),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            size: 20,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onErrorContainer,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Missing SEC data — fill in manually:',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onErrorContainer,
-                                      ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _secDataWarnings.join(', '),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onErrorContainer,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-
-                if (secProvider.stockPriceError != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    secProvider.stockPriceError!.userMessage,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-
-                if (secProvider.error != null) ...[
-                  const SizedBox(height: 8),
-                  Card(
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onErrorContainer,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              secProvider.error!.userMessage,
-                              style: TextStyle(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onErrorContainer,
-                              ),
-                            ),
-                          ),
-                          if (secProvider.error!.isRetryable)
-                            TextButton.icon(
-                              onPressed: secProvider.isLoading
-                                  ? null
-                                  : () => secProvider.retry(),
-                              icon: const Icon(Icons.refresh, size: 18),
-                              label: const Text('Retry'),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 16),
-
-                // 8. Input form (collapsible when results exist)
-                _buildInputForm(context, analysisProvider, hasResults),
-
-                // Error message
-                if (analysisProvider.error != null) ...[
-                  const SizedBox(height: 16),
-                  Card(
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onErrorContainer,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              analysisProvider.error!,
-                              style: TextStyle(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onErrorContainer,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-
-                // Comparison table when no single result (standalone compare)
-                if (!hasResults && hasComparison) ...[
-                  const SizedBox(height: 24),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                  ComparisonTable(
-                    results: analysisProvider.comparisonResults!,
-                    onRowTap: (result) {
-                      final provider = context.read<AnalysisProvider>();
-                      provider.selectProfile(result.profile);
-                      _submitAnalysis();
-                    },
-                  ),
-                ],
-              ],
+              ),
             ),
           );
         },
@@ -642,326 +412,575 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     );
   }
 
-  Widget _buildInputForm(
+  Widget _buildCurrentView(
     BuildContext context,
     AnalysisProvider analysisProvider,
-    bool collapse,
+    SecProvider secProvider,
+    SecFinancialData? financialData,
   ) {
-    final fields = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Company Info section header
-        Text(
-          'Company Info',
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-        const Divider(),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: TextFormField(
-                controller: _companyNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Company Name',
-                  hintText: 'e.g., Apple Inc.',
-                ),
-                validator: (value) =>
-                    value?.isEmpty == true ? 'Required' : null,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextFormField(
-                controller: _tickerController,
-                decoration: const InputDecoration(
-                  labelText: 'Ticker',
-                  hintText: 'AAPL',
-                ),
-                textCapitalization: TextCapitalization.characters,
-                validator: (value) =>
-                    value?.isEmpty == true ? 'Required' : null,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        // Stock price field
-        TextFormField(
-          controller: _stockPriceController,
-          decoration: const InputDecoration(
-            labelText: 'Current Stock Price',
-            hintText: 'e.g., 195.50',
-            prefixText: '\$ ',
-            helperText: 'Required for market cap calculation',
-          ),
-          keyboardType: const TextInputType.numberWithOptions(
-            decimal: true,
-          ),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-          ],
-        ),
-        const SizedBox(height: 20),
-
-        // Financial Data section header
-        Text(
-          'Financial Data',
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-        const Divider(),
-        const SizedBox(height: 4),
-        Text(
-          'All values in millions (\$)',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-        ),
-        const SizedBox(height: 8),
-
-        _buildNumberField(
-          _revenueController,
-          'Revenue',
-          customValidator: (v) => v <= 0 ? 'Revenue must be positive' : null,
-        ),
-        _buildNumberField(
-          _operatingIncomeController,
-          'Operating Income',
-          allowNegativeWarning: true,
-        ),
-        _buildNumberField(
-          _netIncomeController,
-          'Net Income',
-          allowNegativeWarning: true,
-        ),
-        _buildNumberField(
-          _fcfController,
-          'Free Cash Flow',
-          allowNegativeWarning: true,
-        ),
-        _buildNumberField(
-          _marketCapController,
-          'Market Cap',
-          customValidator: (v) =>
-              v <= 0 ? 'Market cap must be positive' : null,
-        ),
-        _buildNumberField(
-          _totalDebtController,
-          'Total Debt',
-          customValidator: (v) =>
-              v < 0 ? 'Debt cannot be negative' : null,
-        ),
-        _buildNumberField(
-          _cashController,
-          'Cash & Equivalents',
-          customValidator: (v) =>
-              v < 0 ? 'Cash cannot be negative' : null,
-        ),
-        _buildNumberField(
-          _ebitdaController,
-          'EBITDA',
-          customValidator: (v) =>
-              v <= 0 ? 'EBITDA must be positive' : null,
-        ),
-        _buildNumberField(
-          _totalEquityController,
-          'Total Equity',
-          customValidator: (v) =>
-              v <= 0 ? 'Equity must be positive' : null,
-        ),
-
-        const SizedBox(height: 12),
-        // Optional section header
-        Text(
-          'Optional',
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-        const Divider(),
-        const SizedBox(height: 8),
-        _buildOptionalNumberField(
-          _earningsGrowthRateController,
-          'Earnings Growth Rate',
-          suffix: '%',
-          helperText: 'Annual EPS growth — needed for PEG ratio',
-        ),
-      ],
-    );
-
-    // 9. Action buttons (always visible, outside the collapsible)
-    final actionButtons = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _clearForm,
-                child: const Text('Clear'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: FilledButton(
-                onPressed:
-                    analysisProvider.isLoading ? null : _submitAnalysis,
-                child: analysisProvider.isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Text('Analyze'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed:
-              analysisProvider.isLoading ? null : _compareAllInvestors,
-          icon: const Icon(Icons.compare_arrows, size: 18),
-          label: const Text('Compare All Investors'),
-        ),
-      ],
-    );
-
-    // Form wraps everything so _formKey.currentState is always accessible
-    if (collapse) {
-      return Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            Card(
-              elevation: 0,
-              color: Theme.of(context).colorScheme.surfaceContainerLow,
-              child: ExpansionTile(
-                title: const Text('Financial Inputs'),
-                subtitle: const Text('Tap to edit inputs'),
-                leading: const Icon(Icons.edit_note),
-                initiallyExpanded: false,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: fields,
-                  ),
-                ],
-              ),
-            ),
-            actionButtons,
-          ],
-        ),
+    final result = analysisProvider.currentResult;
+    if (result != null) {
+      return AnalysisResultView(
+        key: ValueKey('result-${result.analyzedAt.toIso8601String()}'),
+        result: result,
+        onShare: () => Share.share(InvestorContent.generateShareText(result)),
+        onCompare: () => _compareResult(result),
+        onEdit: _editInputs,
+        onStartOver: _clearForm,
       );
     }
 
-    // No results — show form expanded normally
+    final comparison = analysisProvider.comparisonResults;
+    if (comparison != null) {
+      return _buildComparisonView(context, analysisProvider, comparison);
+    }
+
+    return _buildSearchFlow(
+      context,
+      analysisProvider,
+      secProvider,
+      financialData,
+    );
+  }
+
+  Widget _buildComparisonView(
+    BuildContext context,
+    AnalysisProvider provider,
+    List<AnalysisResult> results,
+  ) {
+    return Column(
+      key: const ValueKey('comparison'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Compare screening styles',
+            style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 6),
+        Text(
+          'The same financial snapshot scored against six different rule sets.',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+        const SizedBox(height: 18),
+        ComparisonTable(
+          results: results,
+          onRowTap: (selected) async {
+            provider.selectProfile(selected.profile);
+            await provider.analyze(selected.inputs);
+            if (mounted) await _scrollToTop();
+          },
+        ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: provider.clearComparison,
+          icon: const Icon(Icons.arrow_back),
+          label: const Text('Back to inputs'),
+        ),
+        const SizedBox(height: 10),
+        FilledButton(
+          onPressed: _clearForm,
+          child: const Text('Screen another company'),
+        ),
+        const SizedBox(height: 20),
+        const _Disclaimer(),
+      ],
+    );
+  }
+
+  Widget _buildSearchFlow(
+    BuildContext context,
+    AnalysisProvider analysisProvider,
+    SecProvider secProvider,
+    SecFinancialData? financialData,
+  ) {
+    final hasPreparedData = _companyNameController.text.isNotEmpty;
+    final dataReady = financialData != null && _appliedDataKey != null;
+
     return Form(
       key: _formKey,
       child: Column(
+        key: const ValueKey('search-flow'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          fields,
-          actionButtons,
+          Text(
+            'Screen a stock in minutes',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Search a US company, review the available financials, and see which value-investing checks it matches.',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: 22),
+          Card(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => _showProfilePicker(analysisProvider),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: Icon(
+                        Icons.tune,
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Screening style',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelMedium
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${analysisProvider.selectedProfile.name}-style',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Text(
+                            analysisProvider.selectedProfile.description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Find a company',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Search by ticker or company name. SEC filing data loads automatically.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                  const SizedBox(height: 14),
+                  TickerSearchField(
+                    key: ValueKey(_searchFieldGeneration),
+                  ),
+                  if (secProvider.isLoading) ...[
+                    const SizedBox(height: 14),
+                    const _LoadingCard(),
+                  ],
+                  if (dataReady) ...[
+                    const SizedBox(height: 14),
+                    _buildDataReadyCard(context, financialData),
+                  ],
+                  if (secProvider.stockPriceError != null && dataReady) ...[
+                    const SizedBox(height: 10),
+                    _InlineNotice(
+                      icon: Icons.price_change_outlined,
+                      text: secProvider.stockPriceError!.userMessage,
+                    ),
+                  ],
+                  if (secProvider.error != null &&
+                      !secProvider.isCacheLoading &&
+                      (secProvider.tickerCount > 0 ||
+                          secProvider.selectedCompany != null)) ...[
+                    const SizedBox(height: 12),
+                    _ErrorCard(
+                      message: secProvider.error!.userMessage,
+                      onRetry: secProvider.error!.isRetryable
+                          ? secProvider.retry
+                          : null,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (!hasPreparedData)
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                TextButton.icon(
+                  onPressed: () => setState(() => _showInputs = true),
+                  icon: const Icon(Icons.edit_note),
+                  label: const Text('Enter financials manually'),
+                ),
+                TextButton.icon(
+                  onPressed: _loadDemo,
+                  icon: const Icon(Icons.play_circle_outline),
+                  label: const Text('Try a fictional sample'),
+                ),
+              ],
+            ),
+          Offstage(
+            offstage: !_showInputs,
+            child: Padding(
+              key: _inputsKey,
+              padding: const EdgeInsets.only(top: 12),
+              child: _buildFinancialInputs(context),
+            ),
+          ),
+          if (hasPreparedData && !_showInputs) ...[
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () => setState(() => _showInputs = true),
+              icon: const Icon(Icons.visibility_outlined),
+              label: const Text('Review all financial inputs'),
+            ),
+          ],
+          if (hasPreparedData || _showInputs) ...[
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: analysisProvider.isLoading ? null : _submitAnalysis,
+              icon: analysisProvider.isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.fact_check_outlined),
+              label: Text(
+                _secDataWarnings.isNotEmpty
+                    ? 'Complete inputs and run screen'
+                    : 'Run ${analysisProvider.selectedProfile.name}-style screen',
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed:
+                  analysisProvider.isLoading ? null : _compareAllInvestors,
+              icon: const Icon(Icons.compare_arrows),
+              label: const Text('Compare all screening styles'),
+            ),
+          ],
+          if (analysisProvider.error != null) ...[
+            const SizedBox(height: 12),
+            _ErrorCard(message: analysisProvider.error!),
+          ],
+          if (_optionalWarnings.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ..._optionalWarnings.map(
+              (warning) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _InlineNotice(
+                  icon: Icons.info_outline,
+                  text: warning,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 24),
+          const _Disclaimer(),
         ],
       ),
     );
   }
 
-  Widget _buildPeriodBanner(SecFinancialData data) {
-    final priceInfo = data.stockPriceAsOf != null
-        ? ' · Price as of ${DateFormat.jm().format(data.stockPriceAsOf!)}'
-        : '';
+  Widget _buildDataReadyCard(BuildContext context, SecFinancialData data) {
+    final completeCount = 9 - _secDataWarnings.length;
+    final priceInfo = data.stockPriceAsOf == null
+        ? ''
+        : ' • price checked ${DateFormat.jm().format(data.stockPriceAsOf!)}';
 
-    return Card(
-      color: Theme.of(context).colorScheme.secondaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          children: [
-            Icon(
-              Icons.calendar_today,
-              size: 16,
-              color: Theme.of(context).colorScheme.onSecondaryContainer,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Data: ${data.periodDescription}$priceInfo',
-                style: TextStyle(
-                  color:
-                      Theme.of(context).colorScheme.onSecondaryContainer,
-                  fontWeight: FontWeight.w500,
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _secDataWarnings.isEmpty
+            ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.55)
+            : Theme.of(context).colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                _secDataWarnings.isEmpty
+                    ? Icons.check_circle
+                    : Icons.warning_amber_rounded,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${data.companyName} (${data.ticker})',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$completeCount of 9 required inputs found',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    Text(
+                      '${data.periodDescription}$priceInfo',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ),
               ),
+            ],
+          ),
+          if (_secDataWarnings.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Still needed: ${_secDataWarnings.join(', ')}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
-            if (data.isTtm)
-              const Chip(
-                label: Text('TTM'),
-                labelStyle: TextStyle(fontSize: 11),
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.all(0),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinancialInputs(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Review financial inputs',
+                          style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Values are USD millions unless noted.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Hide financial inputs',
+                  onPressed: () => setState(() => _showInputs = false),
+                  icon: const Icon(Icons.expand_less),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final twoColumns = constraints.maxWidth >= 560;
+                final width = twoColumns
+                    ? (constraints.maxWidth - 12) / 2
+                    : constraints.maxWidth;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    SizedBox(
+                      width: width,
+                      child: _buildTextField(
+                        _companyNameController,
+                        'Company name',
+                        hint: 'e.g. Apple Inc.',
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _buildTextField(
+                        _tickerController,
+                        'Ticker',
+                        hint: 'e.g. AAPL',
+                        capitalization: TextCapitalization.characters,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _buildOptionalNumberField(
+                        _stockPriceController,
+                        'Current stock price',
+                        prefix: r'$ ',
+                        helperText:
+                            'Used to calculate market cap when shares are available',
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _buildNumberField(
+                        _marketCapController,
+                        'Market cap',
+                        validator: (value) =>
+                            value <= 0 ? 'Must be greater than zero' : null,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _buildNumberField(
+                        _revenueController,
+                        'Revenue',
+                        validator: (value) =>
+                            value <= 0 ? 'Must be greater than zero' : null,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _buildNumberField(
+                        _operatingIncomeController,
+                        'Operating income',
+                        signed: true,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _buildNumberField(
+                        _netIncomeController,
+                        'Net income',
+                        signed: true,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _buildNumberField(
+                        _fcfController,
+                        'Free cash flow',
+                        signed: true,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _buildNumberField(
+                        _totalDebtController,
+                        'Total debt',
+                        validator: (value) =>
+                            value < 0 ? 'Cannot be negative' : null,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _buildNumberField(
+                        _cashController,
+                        'Cash and equivalents',
+                        validator: (value) =>
+                            value < 0 ? 'Cannot be negative' : null,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _buildNumberField(
+                        _ebitdaController,
+                        'EBITDA',
+                        validator: (value) =>
+                            value <= 0 ? 'Must be greater than zero' : null,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _buildNumberField(
+                        _totalEquityController,
+                        'Total equity',
+                        validator: (value) =>
+                            value <= 0 ? 'Must be greater than zero' : null,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _buildOptionalNumberField(
+                        _earningsGrowthRateController,
+                        'Earnings growth rate',
+                        suffix: '%',
+                        helperText: 'Optional; used for the PEG check',
+                        signed: true,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _clearForm,
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Clear inputs'),
               ),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTextField(
+    TextEditingController controller,
+    String label, {
+    String? hint,
+    TextCapitalization capitalization = TextCapitalization.none,
+  }) {
+    return TextFormField(
+      controller: controller,
+      textCapitalization: capitalization,
+      decoration: InputDecoration(labelText: label, hintText: hint),
+      validator: (value) =>
+          value == null || value.trim().isEmpty ? 'Required' : null,
     );
   }
 
   Widget _buildNumberField(
     TextEditingController controller,
     String label, {
-    String? Function(double value)? customValidator,
-    bool allowNegativeWarning = false,
+    String? Function(double value)? validator,
+    bool signed = false,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        controller: controller,
-        decoration: InputDecoration(
-          labelText: label,
-          suffixText: 'M',
-          suffixIcon: allowNegativeWarning
-              ? _buildNegativeWarningIcon(controller)
-              : null,
-        ),
-        keyboardType: const TextInputType.numberWithOptions(
-          decimal: true,
-          signed: true,
-        ),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*')),
-        ],
-        validator: (value) {
-          if (value?.isEmpty == true) return 'Required';
-          final parsed = double.tryParse(value!);
-          if (parsed == null) return 'Invalid number';
-          if (customValidator != null) return customValidator(parsed);
-          return null;
-        },
+    return TextFormField(
+      controller: controller,
+      keyboardType: TextInputType.numberWithOptions(
+        decimal: true,
+        signed: signed,
       ),
-    );
-  }
-
-  Widget? _buildNegativeWarningIcon(TextEditingController controller) {
-    return ValueListenableBuilder<TextEditingValue>(
-      valueListenable: controller,
-      builder: (context, value, _) {
-        final parsed = double.tryParse(value.text);
-        if (parsed != null && parsed < 0) {
-          return Tooltip(
-            message: 'Negative value — will impact grade',
-            child: Icon(
-              Icons.warning_amber_rounded,
-              color: Theme.of(context).colorScheme.error,
-              size: 20,
-            ),
-          );
-        }
-        return const SizedBox.shrink();
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(
+          RegExp(signed ? r'^-?\d*\.?\d*' : r'^\d*\.?\d*'),
+        ),
+      ],
+      decoration: InputDecoration(labelText: label, suffixText: 'M'),
+      validator: (value) {
+        if (value == null || value.isEmpty) return 'Required';
+        final parsed = double.tryParse(value);
+        if (parsed == null) return 'Enter a valid number';
+        return validator?.call(parsed);
       },
     );
   }
@@ -969,34 +988,153 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
   Widget _buildOptionalNumberField(
     TextEditingController controller,
     String label, {
+    String? prefix,
     String? suffix,
     String? helperText,
-    String? Function(double value)? customValidator,
+    bool signed = false,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        controller: controller,
-        decoration: InputDecoration(
-          labelText: '$label (optional)',
-          suffixText: suffix,
-          helperText: helperText,
-        ),
-        keyboardType: const TextInputType.numberWithOptions(
-          decimal: true,
-          signed: true,
-        ),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*')),
-        ],
-        validator: (value) {
-          if (value == null || value.isEmpty) return null; // optional
-          final parsed = double.tryParse(value);
-          if (parsed == null) return 'Invalid number';
-          if (customValidator != null) return customValidator(parsed);
-          return null;
-        },
+    return TextFormField(
+      controller: controller,
+      keyboardType: TextInputType.numberWithOptions(
+        decimal: true,
+        signed: signed,
       ),
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(
+          RegExp(signed ? r'^-?\d*\.?\d*' : r'^\d*\.?\d*'),
+        ),
+      ],
+      decoration: InputDecoration(
+        labelText: '$label (optional)',
+        prefixText: prefix,
+        suffixText: suffix,
+        helperText: helperText,
+        helperMaxLines: 2,
+      ),
+      validator: (value) {
+        if (value == null || value.isEmpty) return null;
+        return double.tryParse(value) == null ? 'Enter a valid number' : null;
+      },
+    );
+  }
+}
+
+class _LoadingCard extends StatelessWidget {
+  const _LoadingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Row(
+        children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: 12),
+          Expanded(child: Text('Loading SEC filings and a recent price…')),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineNotice extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _InlineNotice({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 19),
+          const SizedBox(width: 9),
+          Expanded(child: Text(text)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorCard extends StatelessWidget {
+  final String message;
+  final Future<void> Function()? onRetry;
+
+  const _ErrorCard({required this.message, this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            color: Theme.of(context).colorScheme.onErrorContainer,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onErrorContainer,
+              ),
+            ),
+          ),
+          if (onRetry != null)
+            TextButton(
+              onPressed: onRetry,
+              child: const Text('Retry'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Disclaimer extends StatelessWidget {
+  const _Disclaimer();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.shield_outlined,
+          size: 18,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Educational screening aid only. Not investment advice. SEC data can be incomplete or delayed; verify it before relying on a result.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ),
+      ],
     );
   }
 }

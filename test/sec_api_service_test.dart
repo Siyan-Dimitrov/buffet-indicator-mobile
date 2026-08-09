@@ -77,22 +77,26 @@ void main() {
 
   group('SecApiService XBRL tag configuration', () {
     test('flowTags contains all expected metrics', () {
-      expect(SecApiService.flowTags.keys, containsAll([
-        'revenue',
-        'operating_income',
-        'net_income',
-        'operating_cash_flow',
-        'capex',
-        'depreciation',
-      ]));
+      expect(
+          SecApiService.flowTags.keys,
+          containsAll([
+            'revenue',
+            'operating_income',
+            'net_income',
+            'operating_cash_flow',
+            'capex',
+            'depreciation',
+          ]));
     });
 
     test('instantTags contains all expected metrics', () {
-      expect(SecApiService.instantTags.keys, containsAll([
-        'long_term_debt',
-        'short_term_debt',
-        'cash',
-      ]));
+      expect(
+          SecApiService.instantTags.keys,
+          containsAll([
+            'long_term_debt',
+            'short_term_debt',
+            'cash',
+          ]));
     });
 
     test('sharesTags is not empty', () {
@@ -101,13 +105,15 @@ void main() {
 
     test('each flow tag has at least one XBRL tag', () {
       for (final entry in SecApiService.flowTags.entries) {
-        expect(entry.value, isNotEmpty, reason: '${entry.key} should have tags');
+        expect(entry.value, isNotEmpty,
+            reason: '${entry.key} should have tags');
       }
     });
 
     test('each instant tag has at least one XBRL tag', () {
       for (final entry in SecApiService.instantTags.entries) {
-        expect(entry.value, isNotEmpty, reason: '${entry.key} should have tags');
+        expect(entry.value, isNotEmpty,
+            reason: '${entry.key} should have tags');
       }
     });
   });

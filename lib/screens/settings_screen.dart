@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/financial_data.dart';
 import '../providers/analysis_provider.dart';
@@ -22,10 +21,16 @@ class SettingsScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             children: [
-              // Investor Profile Section
               Text(
-                'Investor Profile',
+                'Default screening style',
                 style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Used when you start a new company screen.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
               ),
               const SizedBox(height: 8),
               Card(
@@ -42,7 +47,7 @@ class SettingsScreen extends StatelessWidget {
                           provider.selectProfile(value);
                         }
                       },
-                      title: Text(p.name),
+                      title: Text('${p.name}-style'),
                       subtitle: Text(p.description),
                       secondary: isSelected
                           ? Icon(
@@ -56,10 +61,16 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
 
-              // Current Thresholds Section
               Text(
-                'Current Thresholds',
+                'Criteria used',
                 style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Simplified, equal-weight targets for ${profile.name}. These are heuristics, not a recreation of the investor’s complete process.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
               ),
               const SizedBox(height: 8),
 
@@ -214,6 +225,34 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
 
+              Text(
+                'Data and limitations',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Card(
+                child: ExpansionTile(
+                  leading: const Icon(Icons.policy_outlined),
+                  title: const Text('How to use a result'),
+                  subtitle: const Text('Sources, assumptions, and disclaimer'),
+                  childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  children: [
+                    Text(
+                      'Company fundamentals come from SEC filings when available. Prices are fetched separately and can be delayed. Some values, including EBITDA and free cash flow, may be calculated from reported figures. ROIC uses a simplified 25% tax assumption.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Grades measure rule matches only. They do not cover competitive position, management, accounting quality, future events, portfolio fit, or investment risk. Value Lens is an educational screening aid, not investment advice.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
               // About Section
               Text(
                 'About',
@@ -227,18 +266,14 @@ class SettingsScreen extends StatelessWidget {
                   children: [
                     ListTile(
                       leading: const Icon(Icons.school_outlined),
-                      title: const Text('Show Tutorial'),
+                      title: const Text('Show introduction'),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () async {
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setBool('hasSeenOnboarding', false);
-                        if (context.mounted) {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const OnboardingScreen(),
-                            ),
-                          );
-                        }
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const OnboardingScreen(),
+                          ),
+                        );
                       },
                     ),
                     const Divider(height: 1),
@@ -255,7 +290,7 @@ class SettingsScreen extends StatelessWidget {
                       onTap: () {
                         showLicensePage(
                           context: context,
-                          applicationName: 'Buffet Indicator',
+                          applicationName: 'Value Lens',
                           applicationVersion: '1.0.0',
                         );
                       },

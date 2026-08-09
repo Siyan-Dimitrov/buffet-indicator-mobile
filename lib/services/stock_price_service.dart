@@ -8,16 +8,20 @@ class StockPriceService {
 
   StockPriceService({Dio? dio})
       : _dio = dio ??
-            Dio(BaseOptions(headers: {
-              'User-Agent':
-                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            }));
+            Dio(BaseOptions(
+              connectTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 15),
+              sendTimeout: const Duration(seconds: 10),
+              headers: {
+                'User-Agent':
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              },
+            ));
 
   /// Fetch current stock price for a ticker.
   ///
   /// Returns price and market state (e.g. "REGULAR", "PRE", "POST", "CLOSED").
-  Future<({double? price, String? marketState})> getPrice(
-      String ticker) async {
+  Future<({double? price, String? marketState})> getPrice(String ticker) async {
     try {
       final response = await _dio.get(
         '$_baseUrl/v8/finance/chart/$ticker',
@@ -28,8 +32,7 @@ class StockPriceService {
       );
 
       final data = response.data as Map<String, dynamic>;
-      final result =
-          (data['chart']?['result'] as List<dynamic>?)?.firstOrNull;
+      final result = (data['chart']?['result'] as List<dynamic>?)?.firstOrNull;
       if (result == null) {
         return (price: null, marketState: null);
       }

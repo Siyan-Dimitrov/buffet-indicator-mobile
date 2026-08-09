@@ -77,10 +77,15 @@ class SecApiService {
 
   SecApiService({Dio? dio})
       : _dio = dio ??
-            Dio(BaseOptions(headers: {
-              'User-Agent': 'BuffetIndicator/1.0 (buffetindicator@example.com)',
-              'Accept': 'application/json',
-            }));
+            Dio(BaseOptions(
+              connectTimeout: const Duration(seconds: 12),
+              receiveTimeout: const Duration(seconds: 20),
+              sendTimeout: const Duration(seconds: 12),
+              headers: {
+                'User-Agent': 'ValueLens/1.0 (github.com/Siyan-Dimitrov)',
+                'Accept': 'application/json',
+              },
+            ));
 
   /// Enforce SEC rate limit (max 10 requests/second).
   Future<void> _rateLimit() async {
@@ -390,8 +395,7 @@ class SecApiService {
       if (unitData == null || unitData.isEmpty) continue;
 
       return unitData
-          .where(
-              (e) => e['form'] == '10-K' || e['form'] == '10-Q')
+          .where((e) => e['form'] == '10-K' || e['form'] == '10-Q')
           .map((e) => XbrlFilingEntry.fromJson(e as Map<String, dynamic>))
           .toList();
     }
